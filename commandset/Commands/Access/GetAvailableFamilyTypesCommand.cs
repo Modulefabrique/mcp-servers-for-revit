@@ -23,29 +23,29 @@ namespace RevitMCPCommandSet.Commands.Access
             {
                 try
                 {
-                    // 解析参数
+                    // Parameters parsen
                     List<string> categoryList = parameters?["categoryList"]?.ToObject<List<string>>() ?? new List<string>();
                     string familyNameFilter = parameters?["familyNameFilter"]?.Value<string>();
                     int? limit = parameters?["limit"]?.Value<int>();
 
-                    // 设置查询参数
+                    // Queryparameters instellen
                     _handler.CategoryList = categoryList;
                     _handler.FamilyNameFilter = familyNameFilter;
                     _handler.Limit = limit;
 
-                    // 触发外部事件并等待完成，最多等待15秒
+                    // Extern event activeren en wachten op voltooiing, maximaal 15 seconden wachten
                     if (RaiseAndWaitForCompletion(15000))
                     {
                         return _handler.ResultFamilyTypes;
                     }
                     else
                     {
-                        throw new TimeoutException("获取可用族类型超时");
+                        throw new TimeoutException("Time-out bij ophalen van beschikbare familietypes");
                     }
                 }
                 catch (Exception ex)
                 {
-                    throw new Exception($"获取可用族类型失败: {ex.Message}");
+                    throw new Exception($"Ophalen van beschikbare familietypes mislukt: {ex.Message}");
                 }
             }
         }

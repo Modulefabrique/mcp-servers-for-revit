@@ -21,11 +21,11 @@ export class RevitClientConnection {
     });
 
     this.socket.on("data", (data) => {
-      // 将接收到的数据添加到缓冲区
+      // Voeg de ontvangen gegevens toe aan de buffer
       const dataString = data.toString();
       this.buffer += dataString;
 
-      // 尝试解析完整的JSON响应
+      // Probeer het volledige JSON-antwoord te parsen
       this.processBuffer();
     });
 
@@ -41,13 +41,13 @@ export class RevitClientConnection {
 
   private processBuffer(): void {
     try {
-      // 尝试解析JSON
+      // Probeer JSON te parsen
       const response = JSON.parse(this.buffer);
-      // 如果成功解析，处理响应并清空缓冲区
+      // Als het parsen succesvol is, verwerk de respons en maak de buffer leeg
       this.handleResponse(this.buffer);
       this.buffer = "";
     } catch (e) {
-      // 如果解析失败，可能是因为数据不完整，继续等待更多数据
+      // Als het parsen mislukt, is de data mogelijk onvolledig; blijf wachten op meer data
     }
   }
 
@@ -77,7 +77,7 @@ export class RevitClientConnection {
   private handleResponse(responseData: string): void {
     try {
       const response = JSON.parse(responseData);
-      // 从响应中获取ID
+      // Haal de ID uit de respons
       const requestId = response.id || "default";
 
       const callback = this.responseCallbacks.get(requestId);
@@ -97,10 +97,10 @@ export class RevitClientConnection {
           this.connect();
         }
 
-        // 生成请求ID
+        // Genereer een request-ID
         const requestId = this.generateRequestId();
 
-        // 创建符合JSON-RPC标准的请求对象
+        // Maak een verzoekobject volgens de JSON-RPC-standaard
         const commandObj = {
           jsonrpc: "2.0",
           method: command,
@@ -108,7 +108,7 @@ export class RevitClientConnection {
           id: requestId,
         };
 
-        // 存储回调函数
+        // Sla de callback-functie op
         this.responseCallbacks.set(requestId, (responseData) => {
           try {
             const response = JSON.parse(responseData);
@@ -128,17 +128,17 @@ export class RevitClientConnection {
           }
         });
 
-        // 发送命令
+        // Verstuur het commando
         const commandString = JSON.stringify(commandObj);
         this.socket.write(commandString);
 
-        // 设置超时
+        // Stel een timeout in
         setTimeout(() => {
           if (this.responseCallbacks.has(requestId)) {
             this.responseCallbacks.delete(requestId);
             reject(new Error(`Command timed out after 2 minutes: ${command}`));
           }
-        }, 120000); // 2分钟超时
+        }, 120000); // 2 minuten timeout
       } catch (error) {
         reject(error);
       }

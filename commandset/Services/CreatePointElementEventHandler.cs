@@ -13,21 +13,21 @@ namespace RevitMCPCommandSet.Services
         private Autodesk.Revit.ApplicationServices.Application app => uiApp.Application;
 
         /// <summary>
-        /// 事件等待对象
+        /// Event-wachtobject
         /// </summary>
         private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
         /// <summary>
-        /// 创建数据（传入数据）
+        /// Aan te maken data (invoerdata)
         /// </summary>
         public List<PointElement> CreatedInfo { get; private set; }
         /// <summary>
-        /// 执行结果（传出数据）
+        /// Uitvoeringsresultaat (uitvoerdata)
         /// </summary>
         public AIResult<List<int>> Result { get; private set; }
         private List<string> _warnings = new List<string>();
 
         /// <summary>
-        /// 设置创建的参数
+        /// Stelt de aanmaakparameters in
         /// </summary>
         public void SetParameters(List<PointElement> data)
         {
@@ -46,11 +46,11 @@ namespace RevitMCPCommandSet.Services
                 {
                     int requestedTypeId = data.TypeId;
 
-                    // Step0 获取构件类型
+                    // Stap 0: bouwdeeltype ophalen
                     BuiltInCategory builtInCategory = BuiltInCategory.INVALID;
                     Enum.TryParse(data.Category.Replace(".", ""), true, out builtInCategory);
 
-                    // Step1 获取标高和偏移
+                    // Stap 1: peil en offset ophalen
                     Level baseLevel = null;
                     Level topLevel = null;
                     double topOffset = -1;  // ft
@@ -62,7 +62,7 @@ namespace RevitMCPCommandSet.Services
                     if (baseLevel == null)
                         continue;
 
-                    // Step2 获取族类型
+                    // Stap 2: familietype ophalen
                     FamilySymbol symbol = null;
                     if (data.TypeId != -1 && data.TypeId != 0)
                     {
@@ -73,7 +73,7 @@ namespace RevitMCPCommandSet.Services
                             if (typeEle != null && typeEle is FamilySymbol)
                             {
                                 symbol = typeEle as FamilySymbol;
-                                // 获取symbol的Category对象并转换为BuiltInCategory枚举
+                                // Haal het Category-object van symbol op en converteer naar BuiltInCategory-enum
                                 builtInCategory = (BuiltInCategory)symbol.Category.Id.GetIntValue();
                             }
                         }
@@ -86,7 +86,7 @@ namespace RevitMCPCommandSet.Services
                             .OfClass(typeof(FamilySymbol))
                             .OfCategory(builtInCategory)
                             .Cast<FamilySymbol>()
-                            .FirstOrDefault(fs => fs.IsActive); // 获取激活的类型作为默认类型
+                            .FirstOrDefault(fs => fs.IsActive); // Actieve type als standaardtype gebruiken
                         if (symbol == null)
                         {
                             symbol = new FilteredElementCollector(doc)
@@ -108,8 +108,8 @@ namespace RevitMCPCommandSet.Services
                     if (symbol == null)
                         continue;
 
-                    // Step3 调用通用方法创建族实例
-                    using (Transaction transaction = new Transaction(doc, "创建点状构件"))
+                    // Stap 3: generieke methode aanroepen om familie-exemplaar aan te maken
+                    using (Transaction transaction = new Transaction(doc, "Puntelement aanmaken"))
                     {
                         transaction.Start();
 
@@ -232,21 +232,21 @@ namespace RevitMCPCommandSet.Services
                 Result = new AIResult<List<int>>
                 {
                     Success = false,
-                    Message = $"创建点状构件时出错: {ex.Message}",
+                    Message = $"Fout bij het aanmaken van puntelement: {ex.Message}",
                 };
-                TaskDialog.Show("错误", $"创建点状构件时出错: {ex.Message}");
+                TaskDialog.Show("Fout", $"Fout bij het aanmaken van puntelement: {ex.Message}");
             }
             finally
             {
-                _resetEvent.Set(); // 通知等待线程操作已完成
+                _resetEvent.Set(); // Meldt het wachtende thread dat de bewerking is voltooid
             }
         }
 
         /// <summary>
-        /// 等待创建完成
+        /// Wacht tot het aanmaken is voltooid
         /// </summary>
-        /// <param name="timeoutMilliseconds">超时时间（毫秒）</param>
-        /// <returns>操作是否在超时前完成</returns>
+        /// <param name="timeoutMilliseconds">Time-out (milliseconden)</param>
+        /// <returns>Of de bewerking is voltooid vóór de time-out</returns>
         public bool WaitForCompletion(int timeoutMilliseconds = 10000)
         {
             _resetEvent.Reset();
@@ -254,11 +254,11 @@ namespace RevitMCPCommandSet.Services
         }
 
         /// <summary>
-        /// IExternalEventHandler.GetName 实现
+        /// IExternalEventHandler.GetName-implementatie
         /// </summary>
         public string GetName()
         {
-            return "创建点状构件";
+            return "Puntelement aanmaken";
         }
 
     }

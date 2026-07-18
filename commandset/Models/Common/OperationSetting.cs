@@ -8,89 +8,89 @@ using System.Threading.Tasks;
 namespace RevitMCPCommandSet.Models.Common
 {
     /// <summary>
-    /// 定义可对图元执行的操作类型
+    /// Definieert de bewerkingstypen die op elementen kunnen worden uitgevoerd
     /// </summary>
     public enum ElementOperationType
     {
         /// <summary>
-        /// 选择图元
+        /// Element selecteren
         /// </summary>
         Select,
 
         /// <summary>
-        /// 选择框
+        /// Selectiekader
         /// </summary>
         SelectionBox,
 
         /// <summary>
-        /// 设置图元颜色和填充
+        /// Kleur en vulling van het element instellen
         /// </summary>
         SetColor,
 
         /// <summary>
-        /// 设置图元透明度
+        /// Transparantie van het element instellen
         /// </summary>
         SetTransparency,
 
         /// <summary>
-        /// 删除图元
+        /// Element verwijderen
         /// </summary>
         Delete,
 
         /// <summary>
-        /// 隐藏图元
+        /// Element verbergen
         /// </summary>
         Hide,
 
         /// <summary>
-        /// 临时隐藏图元
+        /// Element tijdelijk verbergen
         /// </summary>
         TempHide,
 
         /// <summary>
-        /// 隔离图元（单独显示）
+        /// Element isoleren (alleen dit element weergeven)
         /// </summary>
         Isolate,
 
         /// <summary>
-        /// 取消隐藏图元
+        /// Verbergen van element ongedaan maken
         /// </summary>
         Unhide,
 
         /// <summary>
-        /// 重置隔离（显示所有图元）
+        /// Isolatie herstellen (alle elementen weergeven)
         /// </summary>
         ResetIsolate,
     }
 
 
     /// <summary>
-    /// 操作元素的设置
+    /// Instellingen voor het bewerken van elementen
     /// </summary>
     public class OperationSetting
     {
         /// <summary>
-        /// 需要操作的元素ID列表
+        /// Lijst met Id's van de te bewerken elementen
         /// </summary>
         [JsonProperty("elementIds")]
         public List<int> ElementIds = new List<int>();
 
         /// <summary>
-        /// 需要执行的动作，存储ElementOperationType枚举的string类型的值
+        /// De uit te voeren actie, bevat de string-waarde van de ElementOperationType-enum
         /// </summary>
         [JsonProperty("action")]
         public string Action { get; set; } = "Select";
 
         /// <summary>
-        /// 透明度值(0-100)，数值越大透明度越高
+        /// Transparantiewaarde (0-100); hoe hoger de waarde, hoe transparanter
         /// </summary>
         [JsonProperty("transparencyValue")]
         public int TransparencyValue { get; set; } = 50;
 
         /// <summary>
-        /// 设置图元颜色（RGB格式），默认为红色
+        /// Kleur van het element (RGB-formaat), standaard rood
         /// </summary>
         [JsonProperty("colorValue")]
-        public int[] ColorValue { get; set; } = new int[] { 255, 0, 0 }; // 默认红色
+        public int[] ColorValue { get; set; } = new int[] { 255, 0, 0 }; // Standaard rood
     }
 }

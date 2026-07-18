@@ -3,19 +3,19 @@
 namespace RevitMCPCommandSet.Models.Common;
 
 /// <summary>
-///     三维线段
+///     3D-lijnsegment
 /// </summary>
 public class JZLine
 {
     /// <summary>
-    ///     构造函数
+    ///     Constructor
     /// </summary>
     public JZLine()
     {
     }
 
     /// <summary>
-    ///     构造函数
+    ///     Constructor
     /// </summary>
     public JZLine(JZPoint p0, JZPoint p1)
     {
@@ -24,14 +24,14 @@ public class JZLine
     }
 
     /// <summary>
-    ///     四个double作为参数的构造函数
+    ///     Constructor met vier doubles als parameters
     /// </summary>
-    /// <param name="x0">起点X坐标</param>
-    /// <param name="y0">起点Y坐标</param>
-    /// <param name="z0">起点Z坐标</param>
-    /// <param name="x1">终点X坐标</param>
-    /// <param name="y1">终点Y坐标</param>
-    /// <param name="z1">终点Z坐标</param>
+    /// <param name="x0">Beginpunt X-coördinaat</param>
+    /// <param name="y0">Beginpunt Y-coördinaat</param>
+    /// <param name="z0">Beginpunt Z-coördinaat</param>
+    /// <param name="x1">Eindpunt X-coördinaat</param>
+    /// <param name="y1">Eindpunt Y-coördinaat</param>
+    /// <param name="z1">Eindpunt Z-coördinaat</param>
     public JZLine(double x0, double y0, double z0, double x1, double y1, double z1)
     {
         P0 = new JZPoint(x0, y0, z0);
@@ -39,14 +39,14 @@ public class JZLine
     }
 
     /// <summary>
-    ///     四个double作为参数的构造函数
+    ///     Constructor met vier doubles als parameters
     /// </summary>
-    /// <param name="x0">起点X坐标</param>
-    /// <param name="y0">起点Y坐标</param>
-    /// <param name="z0">起点Z坐标</param>
-    /// <param name="x1">终点X坐标</param>
-    /// <param name="y1">终点Y坐标</param>
-    /// <param name="z1">终点Z坐标</param>
+    /// <param name="x0">Beginpunt X-coördinaat</param>
+    /// <param name="y0">Beginpunt Y-coördinaat</param>
+    /// <param name="z0">Beginpunt Z-coördinaat</param>
+    /// <param name="x1">Eindpunt X-coördinaat</param>
+    /// <param name="y1">Eindpunt Y-coördinaat</param>
+    /// <param name="z1">Eindpunt Z-coördinaat</param>
     public JZLine(double x0, double y0, double x1, double y1)
     {
         P0 = new JZPoint(x0, y0, 0);
@@ -54,26 +54,26 @@ public class JZLine
     }
 
     /// <summary>
-    ///     起点
+    ///     Beginpunt
     /// </summary>
     [JsonProperty("p0")]
     public JZPoint P0 { get; set; }
 
     /// <summary>
-    ///     终点
+    ///     Eindpunt
     /// </summary>
     [JsonProperty("p1")]
     public JZPoint P1 { get; set; }
 
     /// <summary>
-    ///     获取线段的长度
+    ///     Haalt de lengte van het lijnsegment op
     /// </summary>
     public double GetLength()
     {
         if (P0 == null || P1 == null)
             throw new InvalidOperationException("JZLine must have both P0 and P1 defined to calculate length.");
 
-        // 计算三维点之间的距离
+        // Bereken de afstand tussen de 3D-punten
         var dx = P1.X - P0.X;
         var dy = P1.Y - P0.Y;
         var dz = P1.Z - P0.Z;
@@ -82,32 +82,32 @@ public class JZLine
     }
 
     /// <summary>
-    ///     获取线段的方向
-    ///     返回一个归一化的 JZPoint 表示方向向量
+    ///     Haalt de richting van het lijnsegment op
+    ///     Retourneert een genormaliseerd JZPoint-object als richtingsvector
     /// </summary>
     public JZPoint GetDirection()
     {
         if (P0 == null || P1 == null)
             throw new InvalidOperationException("JZLine must have both P0 and P1 defined to calculate direction.");
 
-        // 计算方向向量
+        // Bereken de richtingsvector
         var dx = P1.X - P0.X;
         var dy = P1.Y - P0.Y;
         var dz = P1.Z - P0.Z;
 
-        // 计算向量的模
+        // Bereken de lengte (norm) van de vector
         var length = Math.Sqrt(dx * dx + dy * dy + dz * dz);
 
         if (length == 0)
             throw new InvalidOperationException("Cannot determine direction for a line with zero length.");
 
-        // 返回归一化向量
+        // Retourneer de genormaliseerde vector
         return new JZPoint(dx / length, dy / length, dz / length);
     }
 
     /// <summary>
-    ///     转换为Revit的Line
-    ///     单位转换：mm -> ft
+    ///     Omzetten naar een Revit Line
+    ///     Eenheidsconversie: mm -> ft
     /// </summary>
     public static Line ToLine(JZLine jzLine)
     {

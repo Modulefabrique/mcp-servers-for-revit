@@ -5,7 +5,7 @@ using RevitMCPSDK.API.Base;
 namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
 {
     /// <summary>
-    /// 处理代码执行的命令类
+    /// Commandoklasse die de uitvoering van code afhandelt
     /// </summary>
     public class ExecuteCodeCommand : ExternalEventCommandBase
     {
@@ -22,34 +22,34 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
         {
             try
             {
-                // 参数验证
+                // Parametervalidatie
                 if (!parameters.ContainsKey("code"))
                 {
                     throw new ArgumentException("Missing required parameter: 'code'");
                 }
 
-                // 解析代码和参数
+                // Code en parameters parsen
                 string code = parameters["code"].Value<string>();
                 JArray parametersArray = parameters["parameters"] as JArray;
                 object[] executionParameters = parametersArray?.ToObject<object[]>() ?? Array.Empty<object>();
                 string transactionMode = parameters["transactionMode"]?.Value<string>() ?? ExecuteCodeEventHandler.TransactionModeAuto;
 
-                // 设置执行参数
+                // Uitvoeringsparameters instellen
                 _handler.SetExecutionParameters(code, executionParameters, transactionMode);
 
-                // 触发外部事件并等待完成
-                if (RaiseAndWaitForCompletion(60000)) // 1分钟超时
+                // Extern event activeren en wachten op voltooiing
+                if (RaiseAndWaitForCompletion(60000)) // 1 minuut time-out
                 {
                     return _handler.ResultInfo;
                 }
                 else
                 {
-                    throw new TimeoutException("代码执行超时");
+                    throw new TimeoutException("Time-out bij uitvoeren van code");
                 }
             }
             catch (Exception ex)
             {
-                throw new Exception($"执行代码失败: {ex.Message}", ex);
+                throw new Exception($"Uitvoeren van code mislukt: {ex.Message}", ex);
             }
         }
     }

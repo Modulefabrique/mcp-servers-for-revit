@@ -18,20 +18,20 @@ namespace RevitMCPCommandSet.Services
         private Autodesk.Revit.ApplicationServices.Application app => uiApp.Application;
 
         /// <summary>
-        /// 事件等待对象
+        /// Wachtobject voor het event
         /// </summary>
         private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
         /// <summary>
-        /// 创建数据（传入数据）
+        /// Aanmaakgegevens (invoergegevens)
         /// </summary>
         public OperationSetting OperationData { get; private set; }
         /// <summary>
-        /// 执行结果（传出数据）
+        /// Uitvoeringsresultaat (uitvoergegevens)
         /// </summary>
         public AIResult<string> Result { get; private set; }
 
         /// <summary>
-        /// 设置创建的参数
+        /// Stelt de parameters voor het aanmaken in
         /// </summary>
         public void SetParameters(OperationSetting data)
         {
@@ -49,7 +49,7 @@ namespace RevitMCPCommandSet.Services
                 Result = new AIResult<string>
                 {
                     Success = true,
-                    Message = $"成功执行操作",
+                    Message = $"Bewerking succesvol uitgevoerd",
                 };
             }
             catch (Exception ex)
@@ -57,20 +57,20 @@ namespace RevitMCPCommandSet.Services
                 Result = new AIResult<string>
                 {
                     Success = false,
-                    Message = $"操作元素时出错: {ex.Message}",
+                    Message = $"Fout bij het bewerken van element: {ex.Message}",
                 };
             }
             finally
             {
-                _resetEvent.Set(); // 通知等待线程操作已完成
+                _resetEvent.Set(); // Informeer de wachtende thread dat de bewerking is voltooid
             }
         }
 
         /// <summary>
-        /// 等待创建完成
+        /// Wacht tot het aanmaken is voltooid
         /// </summary>
-        /// <param name="timeoutMilliseconds">超时时间（毫秒）</param>
-        /// <returns>操作是否在超时前完成</returns>
+        /// <param name="timeoutMilliseconds">Time-out (in milliseconden)</param>
+        /// <returns>Of de bewerking is voltooid vóór de time-out</returns>
         public bool WaitForCompletion(int timeoutMilliseconds = 10000)
         {
             _resetEvent.Reset();
@@ -78,79 +78,79 @@ namespace RevitMCPCommandSet.Services
         }
 
         /// <summary>
-        /// IExternalEventHandler.GetName 实现
+        /// IExternalEventHandler.GetName implementatie
         /// </summary>
         public string GetName()
         {
-            return "操作元素";
+            return "Element bewerken";
         }
 
         /// <summary>
-        /// 根据操作设置执行相应的图元操作
+        /// Voert de bijbehorende elementbewerking uit op basis van de bewerkingsinstellingen
         /// </summary>
-        /// <param name="uidoc">当前UI文档</param>
-        /// <param name="setting">操作设置</param>
-        /// <returns>操作是否成功</returns>
+        /// <param name="uidoc">Het huidige UI-document</param>
+        /// <param name="setting">Bewerkingsinstellingen</param>
+        /// <returns>Of de bewerking is geslaagd</returns>
         public static bool ExecuteElementOperation(UIDocument uidoc, OperationSetting setting)
         {
-            // 检查参数有效性
+            // Controleer of de parameters geldig zijn
             if (uidoc == null || uidoc.Document == null || setting == null || setting.ElementIds == null ||
                 (setting.ElementIds.Count == 0 && setting.Action.ToLower() != "resetisolate"))
-                throw new Exception("参数无效：文档为空或没有指定要操作的图元");
+                throw new Exception("Ongeldige parameters: het document is leeg of er zijn geen elementen opgegeven om te bewerken");
 
             Document doc = uidoc.Document;
 
-            // 将int类型的元素ID转换为ElementId类型
+            // Zet de elementen-ID's van het type int om naar het type ElementId
             ICollection<ElementId> elementIds = setting.ElementIds.Select(id => new ElementId(id)).ToList();
 
-            // 解析操作类型
+            // Bepaal het type bewerking
             ElementOperationType action;
             if (!Enum.TryParse(setting.Action, true, out action))
             {
-                throw new Exception($"未支持的操作类型：{setting.Action}");
+                throw new Exception($"Niet-ondersteund bewerkingstype: {setting.Action}");
             }
 
-            // 根据操作类型执行不同的操作
+            // Voer een andere bewerking uit op basis van het bewerkingstype
             switch (action)
             {
                 case ElementOperationType.Select:
-                    // 选择元素
+                    // Selecteer element
                     uidoc.Selection.SetElementIds(elementIds);
                     return true;
 
                 case ElementOperationType.SelectionBox:
-                    // 在3D视图中创建剖切框
+                    // Maak een snijkader (section box) in de 3D-weergave
 
-                    // 检查当前视图是否为3D视图
+                    // Controleer of de huidige weergave een 3D-weergave is
                     View3D targetView;
 
                     if (doc.ActiveView is View3D)
                     {
-                        // 如果当前视图是3D视图，在当前视图中创建剖切框
+                        // Als de huidige weergave een 3D-weergave is, maak het snijkader in de huidige weergave
                         targetView = doc.ActiveView as View3D;
                     }
                     else
                     {
-                        // 如果当前视图不是3D视图，寻找默认3D视图
+                        // Als de huidige weergave geen 3D-weergave is, zoek de standaard 3D-weergave
                         FilteredElementCollector collector = new FilteredElementCollector(doc);
                         collector.OfClass(typeof(View3D));
 
-                        // 尝试找到默认3D视图或任何其他可用的3D视图
+                        // Probeer de standaard 3D-weergave of een andere beschikbare 3D-weergave te vinden
                         targetView = collector
                             .Cast<View3D>()
                             .FirstOrDefault(v => !v.IsTemplate && !v.IsLocked && (v.Name.Contains("{3D}") || v.Name.Contains("Default 3D")));
 
                         if (targetView == null)
                         {
-                            // 如果没有找到合适的3D视图，抛出异常
-                            throw new Exception("无法找到合适的3D视图用于创建剖切框");
+                            // Als er geen geschikte 3D-weergave is gevonden, gooi een uitzondering
+                            throw new Exception("Kan geen geschikte 3D-weergave vinden om een snijkader te maken");
                         }
 
-                        // 激活该3D视图
+                        // Activeer deze 3D-weergave
                         uidoc.ActiveView = targetView;
                     }
 
-                    // 计算所选元素的包围盒
+                    // Bereken de bounding box van de geselecteerde elementen
                     BoundingBoxXYZ boundingBox = null;
 
                     foreach (ElementId id in elementIds)
@@ -170,7 +170,7 @@ namespace RevitMCPCommandSet.Services
                             }
                             else
                             {
-                                // 扩展边界框以包含当前元素
+                                // Breid de bounding box uit zodat het huidige element erin past
                                 boundingBox.Min = new XYZ(
                                     Math.Min(boundingBox.Min.X, elemBox.Min.X),
                                     Math.Min(boundingBox.Min.Y, elemBox.Min.Y),
@@ -186,16 +186,16 @@ namespace RevitMCPCommandSet.Services
 
                     if (boundingBox == null)
                     {
-                        throw new Exception("无法为所选元素创建边界框");
+                        throw new Exception("Kan geen bounding box maken voor de geselecteerde elementen");
                     }
 
-                    // 增加边界框尺寸，使其略大于元素
-                    double offset = 1.0; // 1英尺的偏移
+                    // Vergroot de bounding box zodat deze iets groter is dan de elementen
+                    double offset = 1.0; // Offset van 1 voet
                     boundingBox.Min = new XYZ(boundingBox.Min.X - offset, boundingBox.Min.Y - offset, boundingBox.Min.Z - offset);
                     boundingBox.Max = new XYZ(boundingBox.Max.X + offset, boundingBox.Max.Y + offset, boundingBox.Max.Z + offset);
 
-                    // 在3D视图中启用并设置剖切框
-                    using (Transaction trans = new Transaction(doc, "创建剖切框"))
+                    // Schakel het snijkader in en stel het in binnen de 3D-weergave
+                    using (Transaction trans = new Transaction(doc, "Snijkader maken"))
                     {
                         trans.Start();
                         targetView.IsSectionBoxActive = true;
@@ -203,39 +203,39 @@ namespace RevitMCPCommandSet.Services
                         trans.Commit();
                     }
 
-                    // 移动到视图中心
+                    // Verplaats naar het midden van de weergave
                     uidoc.ShowElements(elementIds);
                     return true;
 
                 case ElementOperationType.SetColor:
-                    // 将元素设置为指定颜色
-                    using (Transaction trans = new Transaction(doc, "设置元素颜色"))
+                    // Stel de elementen in op de opgegeven kleur
+                    using (Transaction trans = new Transaction(doc, "Elementkleur instellen"))
                     {
                         trans.Start();
                         SetElementsColor(doc, elementIds, setting.ColorValue);
                         trans.Commit();
                     }
-                    // 滚动到这些元素使其可见
+                    // Scroll naar deze elementen zodat ze zichtbaar zijn
                     uidoc.ShowElements(elementIds);
                     return true;
 
 
                 case ElementOperationType.SetTransparency:
-                    // 设置元素在当前视图中的透明度
-                    using (Transaction trans = new Transaction(doc, "设置元素透明度"))
+                    // Stel de transparantie van het element in de huidige weergave in
+                    using (Transaction trans = new Transaction(doc, "Elementtransparantie instellen"))
                     {
                         trans.Start();
 
-                        // 创建图形覆盖设置对象
+                        // Maak een object voor grafische overrideinstellingen
                         OverrideGraphicSettings overrideSettings = new OverrideGraphicSettings();
 
-                        // 设置透明度(确保值在0-100范围内)
+                        // Stel transparantie in (zorg dat de waarde tussen 0-100 ligt)
                         int transparencyValue = Math.Max(0, Math.Min(100, setting.TransparencyValue));
 
-                        // 设置表面透明度
+                        // Stel oppervlaktetransparantie in
                         overrideSettings.SetSurfaceTransparency(transparencyValue);
 
-                        // 对每个元素应用透明度设置
+                        // Pas de transparantie-instelling toe op elk element
                         foreach (ElementId id in elementIds)
                         {
                             doc.ActiveView.SetElementOverrides(id, overrideSettings);
@@ -246,8 +246,8 @@ namespace RevitMCPCommandSet.Services
                     return true;
 
                 case ElementOperationType.Delete:
-                    // 删除元素（需要事务）
-                    using (Transaction trans = new Transaction(doc, "删除元素"))
+                    // Verwijder elementen (transactie vereist)
+                    using (Transaction trans = new Transaction(doc, "Elementen verwijderen"))
                     {
                         trans.Start();
                         doc.Delete(elementIds);
@@ -256,8 +256,8 @@ namespace RevitMCPCommandSet.Services
                     return true;
 
                 case ElementOperationType.Hide:
-                    // 隐藏元素（需要活动视图和事务）
-                    using (Transaction trans = new Transaction(doc, "隐藏元素"))
+                    // Verberg elementen (actieve weergave en transactie vereist)
+                    using (Transaction trans = new Transaction(doc, "Elementen verbergen"))
                     {
                         trans.Start();
                         doc.ActiveView.HideElements(elementIds);
@@ -266,8 +266,8 @@ namespace RevitMCPCommandSet.Services
                     return true;
 
                 case ElementOperationType.TempHide:
-                    // 临时隐藏元素（需要活动视图和事务）
-                    using (Transaction trans = new Transaction(doc, "临时隐藏元素"))
+                    // Verberg elementen tijdelijk (actieve weergave en transactie vereist)
+                    using (Transaction trans = new Transaction(doc, "Elementen tijdelijk verbergen"))
                     {
                         trans.Start();
                         doc.ActiveView.HideElementsTemporary(elementIds);
@@ -276,8 +276,8 @@ namespace RevitMCPCommandSet.Services
                     return true;
 
                 case ElementOperationType.Isolate:
-                    // 隔离元素（需要活动视图和事务）
-                    using (Transaction trans = new Transaction(doc, "隔离元素"))
+                    // Isoleer elementen (actieve weergave en transactie vereist)
+                    using (Transaction trans = new Transaction(doc, "Elementen isoleren"))
                     {
                         trans.Start();
                         doc.ActiveView.IsolateElementsTemporary(elementIds);
@@ -286,8 +286,8 @@ namespace RevitMCPCommandSet.Services
                     return true;
 
                 case ElementOperationType.Unhide:
-                    // 取消隐藏元素（需要活动视图和事务）
-                    using (Transaction trans = new Transaction(doc, "取消隐藏元素"))
+                    // Maak elementen weer zichtbaar (actieve weergave en transactie vereist)
+                    using (Transaction trans = new Transaction(doc, "Elementen weer zichtbaar maken"))
                     {
                         trans.Start();
                         doc.ActiveView.UnhideElements(elementIds);
@@ -296,8 +296,8 @@ namespace RevitMCPCommandSet.Services
                     return true;
 
                 case ElementOperationType.ResetIsolate:
-                    // 重置隔离（需要活动视图和事务）
-                    using (Transaction trans = new Transaction(doc, "重置隔离"))
+                    // Reset isolatie (actieve weergave en transactie vereist)
+                    using (Transaction trans = new Transaction(doc, "Isolatie resetten"))
                     {
                         trans.Start();
                         doc.ActiveView.DisableTemporaryViewMode(TemporaryViewMode.TemporaryHideIsolate);
@@ -306,45 +306,45 @@ namespace RevitMCPCommandSet.Services
                     return true;
 
                 default:
-                    throw new Exception($"未支持的操作类型：{setting.Action}");
+                    throw new Exception($"Niet-ondersteund bewerkingstype: {setting.Action}");
             }
         }
 
         /// <summary>
-        /// 在视图中将指定的元素设置为指定颜色
+        /// Stelt de opgegeven elementen in de weergave in op de opgegeven kleur
         /// </summary>
-        /// <param name="doc">文档</param>
-        /// <param name="elementIds">要设置颜色的元素ID集合</param>
-        /// <param name="elementColor">颜色值（RGB格式）</param>
+        /// <param name="doc">Document</param>
+        /// <param name="elementIds">Verzameling elementen-ID's waarvoor de kleur moet worden ingesteld</param>
+        /// <param name="elementColor">Kleurwaarde (RGB-formaat)</param>
         private static void SetElementsColor(Document doc, ICollection<ElementId> elementIds, int[] elementColor)
         {
-            // 检查颜色数组是否有效
+            // Controleer of de kleurenarray geldig is
             if (elementColor == null || elementColor.Length < 3)
             {
-                elementColor = new int[] { 255, 0, 0 }; // 默认红色
+                elementColor = new int[] { 255, 0, 0 }; // Standaard rood
             }
-            // 确保RGB值在0-255范围内
+            // Zorg dat de RGB-waarden tussen 0-255 liggen
             int r = Math.Max(0, Math.Min(255, elementColor[0]));
             int g = Math.Max(0, Math.Min(255, elementColor[1]));
             int b = Math.Max(0, Math.Min(255, elementColor[2]));
-            // 创建Revit颜色对象 - 使用byte类型转换
+            // Maak een Revit-kleurobject - met conversie naar het type byte
             Color color = new Color((byte)r, (byte)g, (byte)b);
-            // 创建图形覆盖设置
+            // Maak grafische overrideinstellingen
             OverrideGraphicSettings overrideSettings = new OverrideGraphicSettings();
-            // 设置指定颜色
+            // Stel de opgegeven kleur in
             overrideSettings.SetProjectionLineColor(color);
             overrideSettings.SetCutLineColor(color);
             overrideSettings.SetSurfaceForegroundPatternColor(color);
             overrideSettings.SetSurfaceBackgroundPatternColor(color);
 
-            // 尝试设置填充图案
+            // Probeer het vulpatroon in te stellen
             try
             {
-                // 尝试获取默认的填充图案
+                // Probeer het standaard vulpatroon op te halen
                 FilteredElementCollector patternCollector = new FilteredElementCollector(doc)
                     .OfClass(typeof(FillPatternElement));
 
-                // 首先尝试找到实心填充图案
+                // Probeer eerst een dekkend (solid) vulpatroon te vinden
                 FillPatternElement solidPattern = patternCollector
                     .Cast<FillPatternElement>()
                     .FirstOrDefault(p => p.GetFillPattern().IsSolidFill);
@@ -357,10 +357,10 @@ namespace RevitMCPCommandSet.Services
             }
             catch (Exception ex)
             {
-                throw new Exception($"设置填充图案失败: {ex.Message}");
+                throw new Exception($"Instellen van vulpatroon mislukt: {ex.Message}");
             }
 
-            // 对每个元素应用覆盖设置
+            // Pas de overrideinstellingen toe op elk element
             foreach (ElementId id in elementIds)
             {
                 doc.ActiveView.SetElementOverrides(id, overrideSettings);

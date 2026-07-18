@@ -11,12 +11,12 @@ namespace RevitMCPCommandSet.Services
         private Autodesk.Revit.ApplicationServices.Application app => uiApp.Application;
 
         /// <summary>
-        /// 事件等待对象
+        /// Wachtobject voor het event
         /// </summary>
         private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         /// <summary>
-        /// 标记结果数据
+        /// Resultaatgegevens van de markering
         /// </summary>
         public object TaggingResults { get; private set; }
 
@@ -24,7 +24,7 @@ namespace RevitMCPCommandSet.Services
         private string _tagTypeId;
 
         /// <summary>
-        /// 设置创建的参数
+        /// Stelt de parameters voor het aanmaken in
         /// </summary>
         public void SetParameters(bool useLeader, string tagTypeId)
         {
@@ -51,7 +51,7 @@ namespace RevitMCPCommandSet.Services
                 List<object> createdTags = new List<object>();
                 List<string> errors = new List<string>();
 
-                using (Transaction tran = new Transaction(doc, "标记墙体"))
+                using (Transaction tran = new Transaction(doc, "Wanden taggen"))
                 {
                     tran.Start();
 
@@ -63,7 +63,7 @@ namespace RevitMCPCommandSet.Services
                         TaggingResults = new
                         {
                             success = false,
-                            message = "没有找到墙标记族类型"
+                            message = "Geen wandlabel-familietype gevonden"
                         };
                         tran.RollBack();
                         return;
@@ -120,7 +120,7 @@ namespace RevitMCPCommandSet.Services
                         }
                         catch (Exception ex)
                         {
-                            errors.Add($"标记墙体 {wall.Id.Value} 出错: {ex.Message}");
+                            errors.Add($"Fout bij het taggen van wand {wall.Id.Value}: {ex.Message}");
                         }
 #else
 try
@@ -163,7 +163,7 @@ try
                         }
                         catch (Exception ex)
                         {
-                            errors.Add($"标记墙体 {wall.Id.IntegerValue} 出错: {ex.Message}");
+                            errors.Add($"Fout bij het taggen van wand {wall.Id.IntegerValue}: {ex.Message}");
                         }
 #endif
                     }
@@ -182,24 +182,24 @@ try
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("错误", $"标记墙体时出错: {ex.Message}");
+                TaskDialog.Show("Fout", $"Fout bij het taggen van wanden: {ex.Message}");
                 TaggingResults = new
                 {
                     success = false,
-                    message = $"发生错误: {ex.Message}"
+                    message = $"Er is een fout opgetreden: {ex.Message}"
                 };
             }
             finally
             {
-                _resetEvent.Set(); // 通知等待线程操作已完成
+                _resetEvent.Set(); // Informeer de wachtende thread dat de bewerking is voltooid
             }
         }
 
         /// <summary>
-        /// 等待创建完成
+        /// Wacht tot het aanmaken is voltooid
         /// </summary>
-        /// <param name="timeoutMilliseconds">超时时间（毫秒）</param>
-        /// <returns>操作是否在超时前完成</returns>
+        /// <param name="timeoutMilliseconds">Time-out (in milliseconden)</param>
+        /// <returns>Of de bewerking is voltooid vóór de time-out</returns>
         public bool WaitForCompletion(int timeoutMilliseconds = 10000)
         {
             _resetEvent.Reset();
@@ -207,11 +207,11 @@ try
         }
 
         /// <summary>
-        /// IExternalEventHandler.GetName 实现
+        /// IExternalEventHandler.GetName implementatie
         /// </summary>
         public string GetName()
         {
-            return "标记墙";
+            return "Wanden taggen";
         }
 
         /// <summary>

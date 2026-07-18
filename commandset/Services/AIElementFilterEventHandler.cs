@@ -24,20 +24,20 @@ namespace RevitMCPCommandSet.Services
         private Document doc => uiDoc.Document;
         private Autodesk.Revit.ApplicationServices.Application app => uiApp.Application;
         /// <summary>
-        /// 事件等待对象
+        /// Wachtobject voor het event
         /// </summary>
         private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
         /// <summary>
-        /// 创建数据（传入数据）
+        /// Aangemaakte gegevens (invoergegevens)
         /// </summary>
         public FilterSetting FilterSetting { get; private set; }
         /// <summary>
-        /// 执行结果（传出数据）
+        /// Uitvoeringsresultaat (uitvoergegevens)
         /// </summary>
         public AIResult<List<object>> Result { get; private set; }
 
         /// <summary>
-        /// 设置创建的参数
+        /// Stelt de parameters voor het aanmaken in
         /// </summary>
         public void SetParameters(FilterSetting data)
         {
@@ -51,31 +51,31 @@ namespace RevitMCPCommandSet.Services
             try
             {
                 var elementInfoList = new List<object>();
-                // 检查过滤器设置是否有效
+                // Controleer of de filterinstellingen geldig zijn
                 if (!FilterSetting.Validate(out string errorMessage))
                     throw new Exception(errorMessage);
-                // 获取指定条件元素的Id
+                // Haal de Id's op van elementen die aan de opgegeven criteria voldoen
                 var elementList = GetFilteredElements(doc, FilterSetting);
                 if (elementList == null || !elementList.Any())
-                    throw new Exception("未在项目中找到指定元素，请检查过滤器设置是否正确");
-                // 过滤器最大个数限制
+                    throw new Exception("Geen elementen gevonden die aan de opgegeven criteria voldoen in het project, controleer de filterinstellingen");
+                // Limiet voor het maximaal aantal elementen van het filter
                 string message = "";
                 if (FilterSetting.MaxElements > 0)
                 {
                     if (elementList.Count > FilterSetting.MaxElements)
                     {
                         elementList = elementList.Take(FilterSetting.MaxElements).ToList();
-                        message = $"。此外，符合过滤条件的共有 {elementList.Count} 个元素，仅显示前 {FilterSetting.MaxElements} 个";
+                        message = $". Bovendien voldoen er in totaal {elementList.Count} elementen aan de filtercriteria, alleen de eerste {FilterSetting.MaxElements} worden weergegeven";
                     }
                 }
 
-                // 获取指定Id元素的信息
+                // Haal de informatie op van de elementen met de opgegeven Id's
                 elementInfoList = GetElementFullInfo(doc, elementList);
 
                 Result = new AIResult<List<object>>
                 {
                     Success = true,
-                    Message = $"成功获取{elementInfoList.Count}个元素信息，具体信息储存在Response属性中"+ message,
+                    Message = $"Succesvol {elementInfoList.Count} elementgegevens opgehaald, gedetailleerde informatie is opgeslagen in de Response-eigenschap"+ message,
                     Response = elementInfoList,
                 };
             }
@@ -84,20 +84,20 @@ namespace RevitMCPCommandSet.Services
                 Result = new AIResult<List<object>>
                 {
                     Success = false,
-                    Message = $"获取元素信息时出错: {ex.Message}",
+                    Message = $"Fout bij het ophalen van elementinformatie: {ex.Message}",
                 };
             }
             finally
             {
-                _resetEvent.Set(); // 通知等待线程操作已完成
+                _resetEvent.Set(); // Informeer de wachtende thread dat de bewerking is voltooid
             }
         }
 
         /// <summary>
-        /// 等待创建完成
+        /// Wacht tot het aanmaken is voltooid
         /// </summary>
-        /// <param name="timeoutMilliseconds">超时时间（毫秒）</param>
-        /// <returns>操作是否在超时前完成</returns>
+        /// <param name="timeoutMilliseconds">Time-out (in milliseconden)</param>
+        /// <returns>Of de bewerking is voltooid vóór de time-out</returns>
         public bool WaitForCompletion(int timeoutMilliseconds = 10000)
         {
             _resetEvent.Reset();
@@ -105,117 +105,117 @@ namespace RevitMCPCommandSet.Services
         }
 
         /// <summary>
-        /// IExternalEventHandler.GetName 实现
+        /// IExternalEventHandler.GetName implementatie
         /// </summary>
         public string GetName()
         {
-            return "获取元素信息";
+            return "Elementinformatie ophalen";
         }
 
         /// <summary>
-        /// 根据过滤器设置获取Revit文档中符合条件的元素，支持多条件组合过滤
+        /// Haalt elementen op uit het Revit-document die voldoen aan de filterinstellingen, ondersteunt combinatie van meerdere filtercriteria
         /// </summary>
-        /// <param name="doc">Revit文档</param>
-        /// <param name="settings">过滤器设置</param>
-        /// <returns>符合所有过滤条件的元素集合</returns>
+        /// <param name="doc">Revit-document</param>
+        /// <param name="settings">Filterinstellingen</param>
+        /// <returns>Verzameling van elementen die aan alle filtercriteria voldoen</returns>
         public static IList<Element> GetFilteredElements(Document doc, FilterSetting settings)
         {
             if (doc == null)
                 throw new ArgumentNullException(nameof(doc));
             if (settings == null)
                 throw new ArgumentNullException(nameof(settings));
-            // 验证过滤器设置
+            // Valideer de filterinstellingen
             if (!settings.Validate(out string errorMessage))
             {
-                System.Diagnostics.Trace.WriteLine($"过滤器设置无效: {errorMessage}");
+                System.Diagnostics.Trace.WriteLine($"Filterinstellingen ongeldig: {errorMessage}");
                 return new List<Element>();
             }
-            // 记录过滤条件应用情况
+            // Registreer de toegepaste filtercriteria
             List<string> appliedFilters = new List<string>();
             List<Element> result = new List<Element>();
-            // 如果同时包含类型和实例，需要分别过滤再合并结果
+            // Als zowel typen als instanties zijn inbegrepen, moet apart gefilterd worden en de resultaten samengevoegd
             if (settings.IncludeTypes && settings.IncludeInstances)
             {
-                // 收集类型元素
+                // Verzamel typeelementen
                 result.AddRange(GetElementsByKind(doc, settings, true, appliedFilters));
 
-                // 收集实例元素
+                // Verzamel instantie-elementen
                 result.AddRange(GetElementsByKind(doc, settings, false, appliedFilters));
             }
             else if (settings.IncludeInstances)
             {
-                // 仅收集实例元素
+                // Verzamel alleen instantie-elementen
                 result = GetElementsByKind(doc, settings, false, appliedFilters);
             }
             else if (settings.IncludeTypes)
             {
-                // 仅收集类型元素
+                // Verzamel alleen typeelementen
                 result = GetElementsByKind(doc, settings, true, appliedFilters);
             }
 
-            // 输出应用的过滤器信息
+            // Geef informatie over de toegepaste filters weer
             if (appliedFilters.Count > 0)
             {
-                System.Diagnostics.Trace.WriteLine($"已应用 {appliedFilters.Count} 个过滤条件: {string.Join(", ", appliedFilters)}");
-                System.Diagnostics.Trace.WriteLine($"最终筛选结果: 共找到 {result.Count} 个元素");
+                System.Diagnostics.Trace.WriteLine($"Er zijn {appliedFilters.Count} filtercriteria toegepast: {string.Join(", ", appliedFilters)}");
+                System.Diagnostics.Trace.WriteLine($"Eindresultaat van de filtering: in totaal {result.Count} elementen gevonden");
             }
             return result;
 
         }
 
         /// <summary>
-        /// 根据元素种类(类型或实例)获取满足过滤条件的元素
+        /// Haalt elementen op die aan de filtercriteria voldoen, op basis van elementsoort (type of instantie)
         /// </summary>
         private static List<Element> GetElementsByKind(Document doc, FilterSetting settings, bool isElementType, List<string> appliedFilters)
         {
-            // 创建基础的FilteredElementCollector
+            // Maak de basis FilteredElementCollector aan
             FilteredElementCollector collector;
-            // 检查是否需要过滤当前视图可见的元素 (仅适用于实例元素)
+            // Controleer of alleen elementen zichtbaar in de huidige weergave gefilterd moeten worden (alleen van toepassing op instantie-elementen)
             if (!isElementType && settings.FilterVisibleInCurrentView && doc.ActiveView != null)
             {
                 collector = new FilteredElementCollector(doc, doc.ActiveView.Id);
-                appliedFilters.Add("当前视图可见元素");
+                appliedFilters.Add("Zichtbare elementen in huidige weergave");
             }
             else
             {
                 collector = new FilteredElementCollector(doc);
             }
-            // 根据元素种类过滤
+            // Filter op basis van elementsoort
             if (isElementType)
             {
                 collector = collector.WhereElementIsElementType();
-                appliedFilters.Add("仅元素类型");
+                appliedFilters.Add("Alleen elementtypen");
             }
             else
             {
                 collector = collector.WhereElementIsNotElementType();
-                appliedFilters.Add("仅元素实例");
+                appliedFilters.Add("Alleen elementinstanties");
             }
-            // 创建过滤器列表
+            // Maak de filterlijst aan
             List<ElementFilter> filters = new List<ElementFilter>();
-            // 1. 类别过滤器
+            // 1. Categoriefilter
             if (!string.IsNullOrWhiteSpace(settings.FilterCategory))
             {
                 BuiltInCategory category;
                 if (!Enum.TryParse(settings.FilterCategory, true, out category))
                 {
-                    throw new ArgumentException($"无法将 '{settings.FilterCategory}' 转换为有效的Revit类别。");
+                    throw new ArgumentException($"Kan '{settings.FilterCategory}' niet omzetten naar een geldige Revit-categorie.");
                 }
                 ElementCategoryFilter categoryFilter = new ElementCategoryFilter(category);
                 filters.Add(categoryFilter);
-                appliedFilters.Add($"类别：{settings.FilterCategory}");
+                appliedFilters.Add($"Categorie: {settings.FilterCategory}");
             }
-            // 2. 元素类型过滤器
+            // 2. Elementtypefilter
             if (!string.IsNullOrWhiteSpace(settings.FilterElementType))
             {
 
                 Type elementType = null;
-                // 尝试解析类型名称的各种可能形式
+                // Probeer verschillende mogelijke vormen van de typenaam te herkennen
                 string[] possibleTypeNames = new string[]
                 {
-                    settings.FilterElementType,                                    // 原始输入
-                    $"Autodesk.Revit.DB.{settings.FilterElementType}, RevitAPI",  // Revit API命名空间
-                    $"{settings.FilterElementType}, RevitAPI"                      // 完整限定带程序集
+                    settings.FilterElementType,                                    // Oorspronkelijke invoer
+                    $"Autodesk.Revit.DB.{settings.FilterElementType}, RevitAPI",  // Revit API-namespace
+                    $"{settings.FilterElementType}, RevitAPI"                      // Volledig gekwalificeerd met assembly
                 };
                 foreach (string typeName in possibleTypeNames)
                 {
@@ -227,50 +227,50 @@ namespace RevitMCPCommandSet.Services
                 {
                     ElementClassFilter classFilter = new ElementClassFilter(elementType);
                     filters.Add(classFilter);
-                    appliedFilters.Add($"元素类型：{elementType.Name}");
+                    appliedFilters.Add($"Elementtype: {elementType.Name}");
                 }
                 else
                 {
-                    throw new Exception($"警告：无法找到类型 '{settings.FilterElementType}'");
+                    throw new Exception($"Waarschuwing: kan het type '{settings.FilterElementType}' niet vinden");
                 }
             }
-            // 3. 族符号过滤器 (仅适用于元素实例)
+            // 3. Familiesymboolfilter (alleen van toepassing op elementinstanties)
             if (!isElementType && settings.FilterFamilySymbolId > 0)
             {
                 ElementId symbolId = new ElementId(settings.FilterFamilySymbolId);
-                // 检查元素是否存在且是族类型
+                // Controleer of het element bestaat en een familietype is
                 Element symbolElement = doc.GetElement(symbolId);
                 if (symbolElement != null && symbolElement is FamilySymbol)
                 {
                     FamilyInstanceFilter familyFilter = new FamilyInstanceFilter(doc, symbolId);
                     filters.Add(familyFilter);
-                    // 添加更详细的族信息日志
+                    // Voeg gedetailleerdere logging van familie-informatie toe
                     FamilySymbol symbol = symbolElement as FamilySymbol;
-                    string familyName = symbol.Family?.Name ?? "未知族";
-                    string symbolName = symbol.Name ?? "未知类型";
-                    appliedFilters.Add($"族类型：{familyName} - {symbolName} (ID: {settings.FilterFamilySymbolId})");
+                    string familyName = symbol.Family?.Name ?? "Onbekende familie";
+                    string symbolName = symbol.Name ?? "Onbekend type";
+                    appliedFilters.Add($"Familietype: {familyName} - {symbolName} (ID: {settings.FilterFamilySymbolId})");
                 }
                 else
                 {
-                    string elementType = symbolElement != null ? symbolElement.GetType().Name : "不存在";
-                    System.Diagnostics.Trace.WriteLine($"警告：ID为 {settings.FilterFamilySymbolId} 的元素{(symbolElement == null ? "不存在" : "不是有效的FamilySymbol")} (实际类型: {elementType})");
+                    string elementType = symbolElement != null ? symbolElement.GetType().Name : "bestaat niet";
+                    System.Diagnostics.Trace.WriteLine($"Waarschuwing: het element met ID {settings.FilterFamilySymbolId} {(symbolElement == null ? "bestaat niet" : "is geen geldig FamilySymbol")} (werkelijk type: {elementType})");
                 }
             }
-            // 4. 空间范围过滤器
+            // 4. Ruimtelijk bereikfilter
             if (settings.BoundingBoxMin != null && settings.BoundingBoxMax != null)
             {
-                // 转换为Revit的XYZ坐标 (毫米转内部单位)
+                // Omzetten naar Revit XYZ-coördinaten (millimeters naar interne eenheden)
                 XYZ minXYZ = JZPoint.ToXYZ(settings.BoundingBoxMin);
                 XYZ maxXYZ = JZPoint.ToXYZ(settings.BoundingBoxMax);
-                // 创建空间范围Outline对象
+                // Maak het Outline-object voor het ruimtelijk bereik aan
                 Outline outline = new Outline(minXYZ, maxXYZ);
-                // 创建相交过滤器
+                // Maak het intersectiefilter aan
                 BoundingBoxIntersectsFilter boundingBoxFilter = new BoundingBoxIntersectsFilter(outline);
                 filters.Add(boundingBoxFilter);
-                appliedFilters.Add($"空间范围过滤：Min({settings.BoundingBoxMin.X:F2}, {settings.BoundingBoxMin.Y:F2}, {settings.BoundingBoxMin.Z:F2}), " +
+                appliedFilters.Add($"Ruimtelijk bereikfilter: Min({settings.BoundingBoxMin.X:F2}, {settings.BoundingBoxMin.Y:F2}, {settings.BoundingBoxMin.Z:F2}), " +
                                   $"Max({settings.BoundingBoxMax.X:F2}, {settings.BoundingBoxMax.Y:F2}, {settings.BoundingBoxMax.Z:F2}) mm");
             }
-            // 应用组合过滤器
+            // Pas het gecombineerde filter toe
             if (filters.Count > 0)
             {
                 ElementFilter combinedFilter = filters.Count == 1
@@ -279,24 +279,24 @@ namespace RevitMCPCommandSet.Services
                 collector = collector.WherePasses(combinedFilter);
                 if (filters.Count > 1)
                 {
-                    System.Diagnostics.Trace.WriteLine($"应用了{filters.Count}个过滤条件的组合过滤器 (逻辑AND关系)");
+                    System.Diagnostics.Trace.WriteLine($"Er is een gecombineerd filter met {filters.Count} filtercriteria toegepast (logische AND-relatie)");
                 }
             }
             return collector.ToElements().ToList();
         }
 
         /// <summary>
-        /// 获取模型元素信息
+        /// Haalt modelelementinformatie op
         /// </summary>
         public static List<object> GetElementFullInfo(Document doc, IList<Element> elementCollector)
         {
             List<object> infoList = new List<object>();
 
-            // 获取并处理元素
+            // Elementen ophalen en verwerken
             foreach (var element in elementCollector)
             {
-                // 判断是否为实体模型元素
-                // 获取元素实例信息
+                // Bepaal of het een fysiek modelelement is
+                // Haal elementinstantie-informatie op
                 if (element?.Category?.HasMaterialQuantities ?? false)
                 {
                     var info = CreateElementFullInfo(doc, element);
@@ -305,7 +305,7 @@ namespace RevitMCPCommandSet.Services
                         infoList.Add(info);
                     }
                 }
-                // 获取元素类型信息
+                // Haal elementtype-informatie op
                 else if (element is ElementType elementType)
                 {
                     var info = CreateTypeFullInfo(doc, elementType);
@@ -314,7 +314,7 @@ namespace RevitMCPCommandSet.Services
                         infoList.Add(info);
                     }
                 }
-                // 3. 空间定位元素 (高频)
+                // 3. Ruimtelijke positioneringselementen (hoge frequentie)
                 else if (element is Level || element is Grid)
                 {
                     var info = CreatePositioningElementInfo(doc, element);
@@ -323,8 +323,8 @@ namespace RevitMCPCommandSet.Services
                         infoList.Add(info);
                     }
                 }
-                // 4. 空间元素 (中高频)
-                else if (element is SpatialElement) // Room, Area等
+                // 4. Ruimte-elementen (middelhoge frequentie)
+                else if (element is SpatialElement) // Room, Area, enz.
                 {
                     var info = CreateSpatialElementInfo(doc, element);
                     if (info != null)
@@ -332,7 +332,7 @@ namespace RevitMCPCommandSet.Services
                         infoList.Add(info);
                     }
                 }
-                // 5. 视图元素 (高频)
+                // 5. Weergave-elementen (hoge frequentie)
                 else if (element is View)
                 {
                     var info = CreateViewInfo(doc, element);
@@ -341,7 +341,7 @@ namespace RevitMCPCommandSet.Services
                         infoList.Add(info);
                     }
                 }
-                // 6. 注释元素 (中频)
+                // 6. Annotatie-elementen (gemiddelde frequentie)
                 else if (element is TextNote || element is Dimension ||
                          element is IndependentTag || element is AnnotationSymbol ||
                          element is SpotDimension)
@@ -352,7 +352,7 @@ namespace RevitMCPCommandSet.Services
                         infoList.Add(info);
                     }
                 }
-                // 7. 处理组和链接
+                // 7. Groepen en links verwerken
                 else if (element is Group || element is RevitLinkInstance)
                 {
                     var info = CreateGroupOrLinkInfo(doc, element);
@@ -361,7 +361,7 @@ namespace RevitMCPCommandSet.Services
                         infoList.Add(info);
                     }
                 }
-                // 8. 获取元素基本信息(兜底处理)
+                // 8. Haal basisinformatie van het element op (fallback)
                 else
                 {
                     var info = CreateElementBasicInfo(doc, element);
@@ -376,7 +376,7 @@ namespace RevitMCPCommandSet.Services
         }
 
         /// <summary>
-        /// 创建单个元素完整的ElementInfo对象
+        /// Maakt een volledig ElementInfo-object voor één element aan
         /// </summary>
         public static ElementInstanceInfo CreateElementFullInfo(Document doc, Element element)
         {
@@ -385,37 +385,37 @@ namespace RevitMCPCommandSet.Services
                 if (element?.Category == null)
                     return null;
 
-                ElementInstanceInfo elementInfo = new ElementInstanceInfo();        //创建存储元素完整信息的自定义类
+                ElementInstanceInfo elementInfo = new ElementInstanceInfo();        // Aangepaste klasse voor het opslaan van volledige elementinformatie
                 // ID
                 elementInfo.Id = element.Id.GetIntValue();
                 // UniqueId
                 elementInfo.UniqueId = element.UniqueId;
-                // 类型名称
+                // Typenaam
                 elementInfo.Name = element.Name;
-                // 族名称
+                // Familienaam
                 elementInfo.FamilyName = element?.get_Parameter(BuiltInParameter.ELEM_FAMILY_PARAM)?.AsValueString();
-                // 类别
+                // Categorie
                 elementInfo.Category = element.Category.Name;
-                // 内置类别
+                // Ingebouwde categorie
                 elementInfo.BuiltInCategory = Enum.GetName(typeof(BuiltInCategory), element.Category.Id.GetIntValue());
-                // 类型Id
+                // Type-Id
                 elementInfo.TypeId = element.GetTypeId().GetIntValue();
-                //所属房间Id  
+                // Bijbehorende ruimte-Id
                 if (element is FamilyInstance instance)
                     elementInfo.RoomId = instance.Room?.Id.GetIntValue() ?? -1;
-                // 标高
+                // Peil
                 elementInfo.Level = GetElementLevel(doc, element);
-                // 最大包围盒
+                // Maximale bounding box
                 BoundingBoxInfo boundingBoxInfo = new BoundingBoxInfo();
                 elementInfo.BoundingBox = GetBoundingBoxInfo(element);
-                // 参数
+                // Parameters
                 //elementInfo.Parameters = GetDimensionParameters(element);
-                ParameterInfo thicknessParam = GetThicknessInfo(element);      //厚度参数
+                ParameterInfo thicknessParam = GetThicknessInfo(element);      // Dikteparameter
                 if (thicknessParam != null)
                 {
                     elementInfo.Parameters.Add(thicknessParam);
                 }
-                ParameterInfo heightParam = GetBoundingBoxHeight(elementInfo.BoundingBox);      //高度参数
+                ParameterInfo heightParam = GetBoundingBoxHeight(elementInfo.BoundingBox);      // Hoogteparameter
                 if (heightParam != null)
                 {
                     elementInfo.Parameters.Add(heightParam);
@@ -430,7 +430,7 @@ namespace RevitMCPCommandSet.Services
         }
 
         /// <summary>
-        /// 创建单个类型完整的TypeFullInfo对象
+        /// Maakt een volledig TypeFullInfo-object voor één type aan
         /// </summary>
         /// <param name="doc"></param>
         /// <param name="elementType"></param>
@@ -442,17 +442,17 @@ namespace RevitMCPCommandSet.Services
             typeInfo.Id = elementType.Id.GetIntValue();
             // UniqueId
             typeInfo.UniqueId = elementType.UniqueId;
-            // 类型名称
+            // Typenaam
             typeInfo.Name = elementType.Name;
-            // 族名称
+            // Familienaam
             typeInfo.FamilyName = elementType.FamilyName;
-            // 类别
+            // Categorie
             typeInfo.Category = elementType.Category.Name;
-            // 内置类别
+            // Ingebouwde categorie
             typeInfo.BuiltInCategory = Enum.GetName(typeof(BuiltInCategory), elementType.Category.Id.GetIntValue());
-            // 参数字典
+            // Parameterwoordenboek
             typeInfo.Parameters = GetDimensionParameters(elementType);
-            ParameterInfo thicknessParam = GetThicknessInfo(elementType);      //厚度参数
+            ParameterInfo thicknessParam = GetThicknessInfo(elementType);      // Dikteparameter
             if (thicknessParam != null)
             {
                 typeInfo.Parameters.Add(thicknessParam);
@@ -461,7 +461,7 @@ namespace RevitMCPCommandSet.Services
         }
 
         /// <summary>
-        /// 创建空间定位元素的信息
+        /// Maakt informatie voor ruimtelijke positioneringselementen aan
         /// </summary>
         public static PositioningElementInfo CreatePositioningElementInfo(Document doc, Element element)
         {
@@ -482,13 +482,13 @@ namespace RevitMCPCommandSet.Services
                     BoundingBox = GetBoundingBoxInfo(element)
                 };
 
-                // 处理标高
+                // Verwerk peil
                 if (element is Level level)
                 {
-                    // 转换为mm
+                    // Omzetten naar mm
                     info.Elevation = level.Elevation * 304.8;
                 }
-                // 处理轴网
+                // Verwerk grid (assenstelsel)
                 else if (element is Grid grid)
                 {
                     Curve curve = grid.Curve;
@@ -496,26 +496,26 @@ namespace RevitMCPCommandSet.Services
                     {
                         XYZ start = curve.GetEndPoint(0);
                         XYZ end = curve.GetEndPoint(1);
-                        // 创建JZLine（转换为mm）
+                        // Maak JZLine aan (omgezet naar mm)
                         info.GridLine = new JZLine(
                             start.X * 304.8, start.Y * 304.8, start.Z * 304.8,
                             end.X * 304.8, end.Y * 304.8, end.Z * 304.8);
                     }
                 }
 
-                // 获取标高信息
+                // Haal peilinformatie op
                 info.Level = GetElementLevel(doc, element);
 
                 return info;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Trace.WriteLine($"创建空间定位元素信息时出错: {ex.Message}");
+                System.Diagnostics.Trace.WriteLine($"Fout bij het aanmaken van informatie voor ruimtelijke positioneringselementen: {ex.Message}");
                 return null;
             }
         }
         /// <summary>
-        /// 创建空间元素的信息
+        /// Maakt informatie voor ruimte-elementen aan
         /// </summary>
         public static SpatialElementInfo CreateSpatialElementInfo(Document doc, Element element)
         {
@@ -537,11 +537,11 @@ namespace RevitMCPCommandSet.Services
                     BoundingBox = GetBoundingBoxInfo(element)
                 };
 
-                // 获取房间或区域的编号
+                // Haal het nummer van de ruimte of zone op
                 if (element is Room room)
                 {
                     info.Number = room.Number;
-                    // 转换为mm³
+                    // Omzetten naar mm³
                     info.Volume = room.Volume * Math.Pow(304.8, 3);
                 }
                 else if (element is Area area)
@@ -549,35 +549,35 @@ namespace RevitMCPCommandSet.Services
                     info.Number = area.Number;
                 }
 
-                // 获取面积
+                // Haal oppervlakte op
                 Parameter areaParam = element.get_Parameter(BuiltInParameter.ROOM_AREA);
                 if (areaParam != null && areaParam.HasValue)
                 {
-                    // 转换为mm²
+                    // Omzetten naar mm²
                     info.Area = areaParam.AsDouble() * Math.Pow(304.8, 2);
                 }
 
-                // 获取周长
+                // Haal omtrek op
                 Parameter perimeterParam = element.get_Parameter(BuiltInParameter.ROOM_PERIMETER);
                 if (perimeterParam != null && perimeterParam.HasValue)
                 {
-                    // 转换为mm
+                    // Omzetten naar mm
                     info.Perimeter = perimeterParam.AsDouble() * 304.8;
                 }
 
-                // 获取标高
+                // Haal peil op
                 info.Level = GetElementLevel(doc, element);
 
                 return info;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Trace.WriteLine($"创建空间元素信息时出错: {ex.Message}");
+                System.Diagnostics.Trace.WriteLine($"Fout bij het aanmaken van ruimte-elementinformatie: {ex.Message}");
                 return null;
             }
         }
         /// <summary>
-        /// 创建视图元素的信息
+        /// Maakt informatie voor weergave-elementen aan
         /// </summary>
         public static ViewInfo CreateViewInfo(Document doc, Element element)
         {
@@ -604,7 +604,7 @@ namespace RevitMCPCommandSet.Services
                     BoundingBox = GetBoundingBoxInfo(element)
                 };
 
-                // 获取与视图关联的标高
+                // Haal het peil op dat aan de weergave is gekoppeld
                 if (view is ViewPlan viewPlan && viewPlan.GenLevel != null)
                 {
                     Level level = viewPlan.GenLevel;
@@ -612,24 +612,24 @@ namespace RevitMCPCommandSet.Services
                     {
                         Id = level.Id.GetIntValue(),
                         Name = level.Name,
-                        Height = level.Elevation * 304.8 // 转换为mm
+                        Height = level.Elevation * 304.8 // Omzetten naar mm
                     };
                 }
 
-                // 判断视图是否打开和激活
+                // Bepaal of de weergave geopend en actief is
                 UIDocument uidoc = new UIDocument(doc);
 
-                // 获取所有打开的视图
+                // Haal alle geopende weergaven op
                 IList<UIView> openViews = uidoc.GetOpenUIViews();
 
                 foreach (UIView uiView in openViews)
                 {
-                    // 检查视图是否打开
+                    // Controleer of de weergave geopend is
                     if (uiView.ViewId.GetValue() == view.Id.GetValue())
                     {
                         info.IsOpen = true;
 
-                        // 检查视图是否是当前激活的视图
+                        // Controleer of de weergave de huidige actieve weergave is
                         if (uidoc.ActiveView.Id.GetValue() == view.Id.GetValue())
                         {
                             info.IsActive = true;
@@ -642,12 +642,12 @@ namespace RevitMCPCommandSet.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Trace.WriteLine($"创建视图元素信息时出错: {ex.Message}");
+                System.Diagnostics.Trace.WriteLine($"Fout bij het aanmaken van weergave-elementinformatie: {ex.Message}");
                 return null;
             }
         }
         /// <summary>
-        /// 创建注释元素的信息
+        /// Maakt informatie voor annotatie-elementen aan
         /// </summary>
         public static AnnotationInfo CreateAnnotationInfo(Document doc, Element element)
         {
@@ -668,7 +668,7 @@ namespace RevitMCPCommandSet.Services
                     BoundingBox = GetBoundingBoxInfo(element)
                 };
 
-                // 获取所在视图
+                // Haal de weergave op waarin het zich bevindt
                 Parameter viewParam = element.get_Parameter(BuiltInParameter.VIEW_NAME);
                 if (viewParam != null && viewParam.HasValue)
                 {
@@ -680,35 +680,35 @@ namespace RevitMCPCommandSet.Services
                     info.OwnerView = ownerView?.Name;
                 }
 
-                // 处理文字标注
+                // Verwerk tekstannotatie
                 if (element is TextNote textNote)
                 {
                     info.TextContent = textNote.Text;
                     XYZ position = textNote.Coord;
-                    // 转换为mm
+                    // Omzetten naar mm
                     info.Position = new JZPoint(
                         position.X * 304.8,
                         position.Y * 304.8,
                         position.Z * 304.8);
                 }
-                // 处理尺寸标注
+                // Verwerk maatvoering
                 else if (element is Dimension dimension)
                 {
                     info.DimensionValue = dimension.Value.ToString();
                     XYZ origin = dimension.Origin;
-                    // 转换为mm
+                    // Omzetten naar mm
                     info.Position = new JZPoint(
                         origin.X * 304.8,
                         origin.Y * 304.8,
                         origin.Z * 304.8);
                 }
-                // 处理其他注释元素
+                // Verwerk overige annotatie-elementen
                 else if (element is AnnotationSymbol annotationSymbol)
                 {
                     if (annotationSymbol.Location is LocationPoint locationPoint)
                     {
                         XYZ position = locationPoint.Point;
-                        // 转换为mm
+                        // Omzetten naar mm
                         info.Position = new JZPoint(
                             position.X * 304.8,
                             position.Y * 304.8,
@@ -719,12 +719,12 @@ namespace RevitMCPCommandSet.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Trace.WriteLine($"创建注释元素信息时出错: {ex.Message}");
+                System.Diagnostics.Trace.WriteLine($"Fout bij het aanmaken van annotatie-elementinformatie: {ex.Message}");
                 return null;
             }
         }
         /// <summary>
-        /// 创建组或链接的信息
+        /// Maakt informatie voor groep of link aan
         /// </summary>
         public static GroupOrLinkInfo CreateGroupOrLinkInfo(Document doc, Element element)
         {
@@ -745,25 +745,25 @@ namespace RevitMCPCommandSet.Services
                     BoundingBox = GetBoundingBoxInfo(element)
                 };
 
-                // 处理组
+                // Verwerk groep
                 if (element is Group group)
                 {
                     ICollection<ElementId> memberIds = group.GetMemberIds();
                     info.MemberCount = memberIds?.Count;
                     info.GroupType = group.GroupType?.Name;
                 }
-                // 处理链接
+                // Verwerk link
                 else if (element is RevitLinkInstance linkInstance)
                 {
                     RevitLinkType linkType = doc.GetElement(linkInstance.GetTypeId()) as RevitLinkType;
                     if (linkType != null)
                     {
                         ExternalFileReference extFileRef = linkType.GetExternalFileReference();
-                        // 获取绝对路径
+                        // Haal absoluut pad op
                         string absPath = ModelPathUtils.ConvertModelPathToUserVisiblePath(extFileRef.GetAbsolutePath());
                         info.LinkPath = absPath;
 
-                        // 使用GetLinkedFileStatus获取链接状态
+                        // Gebruik GetLinkedFileStatus om de linkstatus op te halen
                         LinkedFileStatus linkStatus = linkType.GetLinkedFileStatus();
                         info.LinkStatus = linkStatus.ToString();
                     }
@@ -772,12 +772,12 @@ namespace RevitMCPCommandSet.Services
                         info.LinkStatus = LinkedFileStatus.Invalid.ToString();
                     }
 
-                    // 获取位置
+                    // Haal positie op
                     LocationPoint location = linkInstance.Location as LocationPoint;
                     if (location != null)
                     {
                         XYZ point = location.Point;
-                        // 转换为mm
+                        // Omzetten naar mm
                         info.Position = new JZPoint(
                             point.X * 304.8,
                             point.Y * 304.8,
@@ -789,13 +789,13 @@ namespace RevitMCPCommandSet.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Trace.WriteLine($"创建组和链接信息时出错: {ex.Message}");
+                System.Diagnostics.Trace.WriteLine($"Fout bij het aanmaken van groeps- en linkinformatie: {ex.Message}");
                 return null;
             }
         }
 
         /// <summary>
-        /// 创建元素的增强基础信息
+        /// Maakt uitgebreide basisinformatie voor het element aan
         /// </summary>
         public static ElementBasicInfo CreateElementBasicInfo(Document doc, Element element)
         {
@@ -818,16 +818,16 @@ namespace RevitMCPCommandSet.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Trace.WriteLine($"创建元素基础信息时出错: {ex.Message}");
+                System.Diagnostics.Trace.WriteLine($"Fout bij het aanmaken van basiselementinformatie: {ex.Message}");
                 return null;
             }
         }
 
         /// <summary>
-        /// 获取系统族构件的厚度参数信息
+        /// Haalt de dikteparameterinformatie op van een systeemfamilie-component
         /// </summary>
-        /// <param name="element">系统族构件（墙、楼板、门等）</param>
-        /// <returns>参数信息对象，无效返回null</returns>
+        /// <param name="element">Systeemfamilie-component (wand, vloer, deur, enz.)</param>
+        /// <returns>Parameterinformatie-object, retourneert null indien ongeldig</returns>
         public static ParameterInfo GetThicknessInfo(Element element)
         {
             if (element == null)
@@ -835,14 +835,14 @@ namespace RevitMCPCommandSet.Services
                 return null;
             }
 
-            // 获取构件类型
+            // Haal het componenttype op
             ElementType elementType = element.Document.GetElement(element.GetTypeId()) as ElementType;
             if (elementType == null)
             {
                 return null;
             }
 
-            // 根据不同构件类型获取对应的内置厚度参数
+            // Haal het bijbehorende ingebouwde dikteparameter op basis van het componenttype op
             Parameter thicknessParam = null;
 
             if (elementType is WallType)
@@ -872,7 +872,7 @@ namespace RevitMCPCommandSet.Services
             {
                 return new ParameterInfo
                 {
-                    Name = "厚度",
+                    Name = "Dikte",
                     Value = $"{thicknessParam.AsDouble() * 304.8}"
                 };
             }
@@ -880,7 +880,7 @@ namespace RevitMCPCommandSet.Services
         }
 
         /// <summary>
-        /// 获取元素所属的标高信息
+        /// Haalt de peilinformatie op waartoe het element behoort
         /// </summary>
         public static LevelInfo GetElementLevel(Document doc, Element element)
         {
@@ -888,12 +888,12 @@ namespace RevitMCPCommandSet.Services
             {
                 Level level = null;
 
-                // 处理不同类型元素的标高获取
-                if (element is Wall wall) // 墙体
+                // Verwerk het ophalen van het peil voor verschillende elementtypen
+                if (element is Wall wall) // Wand
                 {
                     level = doc.GetElement(wall.LevelId) as Level;
                 }
-                else if (element is Floor floor) // 楼板
+                else if (element is Floor floor) // Vloer
                 {
                     Parameter levelParam = floor.get_Parameter(BuiltInParameter.LEVEL_PARAM);
                     if (levelParam != null && levelParam.HasValue)
@@ -901,15 +901,15 @@ namespace RevitMCPCommandSet.Services
                         level = doc.GetElement(levelParam.AsElementId()) as Level;
                     }
                 }
-                else if (element is FamilyInstance familyInstance) // 族实例（包括常规模型等）
+                else if (element is FamilyInstance familyInstance) // Familie-instantie (inclusief algemeen model, enz.)
                 {
-                    // 尝试获取族实例的标高参数
+                    // Probeer de peilparameter van de familie-instantie op te halen
                     Parameter levelParam = familyInstance.get_Parameter(BuiltInParameter.FAMILY_LEVEL_PARAM);
                     if (levelParam != null && levelParam.HasValue)
                     {
                         level = doc.GetElement(levelParam.AsElementId()) as Level;
                     }
-                    // 如果上面的方法获取不到，尝试使用SCHEDULE_LEVEL_PARAM
+                    // Als de bovenstaande methode niets oplevert, probeer SCHEDULE_LEVEL_PARAM te gebruiken
                     if (level == null)
                     {
                         levelParam = familyInstance.get_Parameter(BuiltInParameter.SCHEDULE_LEVEL_PARAM);
@@ -919,9 +919,9 @@ namespace RevitMCPCommandSet.Services
                         }
                     }
                 }
-                else // 其他元素
+                else // Overige elementen
                 {
-                    // 尝试获取通用的标高参数
+                    // Probeer de algemene peilparameter op te halen
                     Parameter levelParam = element.get_Parameter(BuiltInParameter.INSTANCE_REFERENCE_LEVEL_PARAM);
                     if (levelParam != null && levelParam.HasValue)
                     {
@@ -951,7 +951,7 @@ namespace RevitMCPCommandSet.Services
         }
 
         /// <summary>
-        /// 获取元素的包围盒信息
+        /// Haalt de bounding-boxinformatie van het element op
         /// </summary>
         public static BoundingBoxInfo GetBoundingBoxInfo(Element element)
         {
@@ -979,26 +979,26 @@ namespace RevitMCPCommandSet.Services
         }
 
         /// <summary>
-        /// 获取包围盒的高度参数信息
+        /// Haalt de hoogteparameterinformatie van de bounding box op
         /// </summary>
-        /// <param name="boundingBoxInfo">包围盒信息</param>
-        /// <returns>参数信息对象，无效返回null</returns>
+        /// <param name="boundingBoxInfo">Bounding-boxinformatie</param>
+        /// <returns>Parameterinformatie-object, retourneert null indien ongeldig</returns>
         public static ParameterInfo GetBoundingBoxHeight(BoundingBoxInfo boundingBoxInfo)
         {
             try
             {
-                // 参数检查
+                // Parametercontrole
                 if (boundingBoxInfo?.Min == null || boundingBoxInfo?.Max == null)
                 {
                     return null;
                 }
 
-                // Z轴方向的差值即为高度
+                // Het verschil in de Z-richting is de hoogte
                 double height = Math.Abs(boundingBoxInfo.Max.Z - boundingBoxInfo.Min.Z);
 
                 return new ParameterInfo
                 {
-                    Name = "高度",
+                    Name = "Hoogte",
                     Value = $"{height}"
                 };
             }
@@ -1009,13 +1009,13 @@ namespace RevitMCPCommandSet.Services
         }
 
         /// <summary>
-        /// 获取元素中所有非空参数的名称和值
+        /// Haalt de namen en waarden op van alle niet-lege parameters van het element
         /// </summary>
-        /// <param name="element">Revit元素</param>
-        /// <returns>参数信息列表</returns>
+        /// <param name="element">Revit-element</param>
+        /// <returns>Lijst met parameterinformatie</returns>
         public static List<ParameterInfo> GetDimensionParameters(Element element)
         {
-            // 检查元素是否为空
+            // Controleer of het element leeg is
             if (element == null)
             {
                 return new List<ParameterInfo>();
@@ -1023,24 +1023,24 @@ namespace RevitMCPCommandSet.Services
 
             var parameters = new List<ParameterInfo>();
 
-            // 获取元素的所有参数
+            // Haal alle parameters van het element op
             foreach (Parameter param in element.Parameters)
             {
                 try
                 {
-                    // 跳过无效参数
+                    // Sla ongeldige parameters over
                     if (!param.HasValue || param.IsReadOnly)
                     {
                         continue;
                     }
 
-                    // 如果当前参数是尺寸相关参数
+                    // Als de huidige parameter een dimensiegerelateerde parameter is
                     if (IsDimensionParameter(param))
                     {
-                        // 获取参数值的字符串表示
+                        // Haal de string-representatie van de parameterwaarde op
                         string value = param.AsValueString();
 
-                        // 如果值非空，则添加到列表中
+                        // Voeg toe aan de lijst als de waarde niet leeg is
                         if (!string.IsNullOrWhiteSpace(value))
                         {
                             parameters.Add(new ParameterInfo
@@ -1053,40 +1053,40 @@ namespace RevitMCPCommandSet.Services
                 }
                 catch
                 {
-                    // 如果获取某个参数值出错，继续处理下一个
+                    // Als het ophalen van een parameterwaarde mislukt, ga verder met de volgende
                     continue;
                 }
             }
 
-            // 按参数名称排序后返回
+            // Retourneer gesorteerd op parameternaam
             return parameters.OrderBy(p => p.Name).ToList();
         }
 
         /// <summary>
-        /// 判断参数是否为可写入的尺寸参数
+        /// Bepaalt of de parameter een schrijfbare dimensieparameter is
         /// </summary>
         public static bool IsDimensionParameter(Parameter param)
         {
 
 #if REVIT2023_OR_GREATER
-            // 在Revit 2023中使用Definition的GetDataType()方法获取参数类型
+            // Gebruik in Revit 2023 de GetDataType()-methode van Definition om het parametertype op te halen
             ForgeTypeId paramTypeId = param.Definition.GetDataType();
 
-            // 判断参数是否为尺寸相关的类型
+            // Bepaal of de parameter van een dimensiegerelateerd type is
             bool isDimensionType = paramTypeId.Equals(SpecTypeId.Length) ||
                                    paramTypeId.Equals(SpecTypeId.Angle) ||
                                    paramTypeId.Equals(SpecTypeId.Area) ||
                                    paramTypeId.Equals(SpecTypeId.Volume);
-            // 只存储尺寸类型参数
+            // Sla alleen dimensietype-parameters op
             return isDimensionType;
 #else
-            // 判断参数是否为尺寸相关的类型
+            // Bepaal of de parameter van een dimensiegerelateerd type is
             bool isDimensionType = param.Definition.ParameterType == ParameterType.Length ||
                                    param.Definition.ParameterType == ParameterType.Angle ||
                                    param.Definition.ParameterType == ParameterType.Area ||
                                    param.Definition.ParameterType == ParameterType.Volume;
 
-            // 只存储尺寸类型参数
+            // Sla alleen dimensietype-parameters op
             return isDimensionType;
 #endif
         }
@@ -1094,7 +1094,7 @@ namespace RevitMCPCommandSet.Services
     }
 
     /// <summary>
-    /// 存储元素完整信息的自定义类
+    /// Aangepaste klasse voor het opslaan van volledige elementinformatie
     /// </summary>
     public class ElementInstanceInfo
     {
@@ -1107,46 +1107,46 @@ namespace RevitMCPCommandSet.Services
         /// </summary>
         public string UniqueId { get; set; }
         /// <summary>
-        /// 类型Id
+        /// Type-Id
         /// </summary>
         public int TypeId { get; set; }
         /// <summary>
-        /// 名称
+        /// Naam
         /// </summary>
         public string Name { get; set; }
         /// <summary>
-        /// 族名称
+        /// Familienaam
         /// </summary>
         public string FamilyName { get; set; }
         /// <summary>
-        /// 类别
+        /// Categorie
         /// </summary>
         public string Category { get; set; }
         /// <summary>
-        /// 内置类别
+        /// Ingebouwde categorie
         /// </summary>
         public string BuiltInCategory { get; set; }
         /// <summary>
-        /// 所属房间Id
+        /// Bijbehorende ruimte-Id
         /// </summary>
         public int RoomId { get; set; }
         /// <summary>
-        /// 所属标高名称
+        /// Naam van bijbehorend peil
         /// </summary>
         public LevelInfo Level { get; set; }
         /// <summary>
-        /// 位置信息
+        /// Positie-informatie
         /// </summary>
         public BoundingBoxInfo BoundingBox { get; set; }
         /// <summary>
-        /// 实例参数
+        /// Instantieparameters
         /// </summary>
         public List<ParameterInfo> Parameters { get; set; } = new List<ParameterInfo>();
 
     }
 
     /// <summary>
-    /// 存储元素类型完整信息的自定义类
+    /// Aangepaste klasse voor het opslaan van volledige elementtype-informatie
     /// </summary>
     public class ElementTypeInfo
     {
@@ -1159,357 +1159,357 @@ namespace RevitMCPCommandSet.Services
         /// </summary>
         public string UniqueId { get; set; }
         /// <summary>
-        /// 名称
+        /// Naam
         /// </summary>
         public string Name { get; set; }
         /// <summary>
-        /// 族名称
+        /// Familienaam
         /// </summary>
         public string FamilyName { get; set; }
         /// <summary>
-        /// 类别名称
+        /// Categorienaam
         /// </summary>
         public string Category { get; set; }
         /// <summary>
-        /// 内置类别ID
+        /// Ingebouwde categorie-ID
         /// </summary>
         public string BuiltInCategory { get; set; }
         /// <summary>
-        /// 类型参数
+        /// Typeparameters
         /// </summary>
         public List<ParameterInfo> Parameters { get; set; } = new List<ParameterInfo>();
 
     }
 
     /// <summary>
-    /// 空间定位元素(标高、轴网等)基础信息的类
+    /// Klasse voor basisinformatie van ruimtelijke positioneringselementen (peil, grid, enz.)
     /// </summary>
     public class PositioningElementInfo
     {
         /// <summary>
-        /// 元素ID
+        /// Element-ID
         /// </summary>
         public int Id { get; set; }
         /// <summary>
-        /// 元素唯一ID
+        /// Uniek element-ID
         /// </summary>
         public string UniqueId { get; set; }
         /// <summary>
-        /// 名称
+        /// Naam
         /// </summary>
         public string Name { get; set; }
         /// <summary>
-        /// 族名称
+        /// Familienaam
         /// </summary>
         public string FamilyName { get; set; }
         /// <summary>
-        /// 类别名称
+        /// Categorienaam
         /// </summary>
         public string Category { get; set; }
         /// <summary>
-        /// 内置类别(可选)
+        /// Ingebouwde categorie (optioneel)
         /// </summary>
         public string BuiltInCategory { get; set; }
         /// <summary>
-        /// 元素的.NET类名称
+        /// De .NET-klassenaam van het element
         /// </summary>
         public string ElementClass { get; set; }
         /// <summary>
-        /// 高程值 (适用于标高，单位mm)
+        /// Hoogteligging (van toepassing op peilen, eenheid mm)
         /// </summary>
         public double? Elevation { get; set; }
         /// <summary>
-        /// 所属标高
+        /// Bijbehorend peil
         /// </summary>
         public LevelInfo Level { get; set; }
         /// <summary>
-        /// 位置信息
+        /// Positie-informatie
         /// </summary>
         public BoundingBoxInfo BoundingBox { get; set; }
         /// <summary>
-        /// 轴网线(适用于轴网)
+        /// Gridlijn (van toepassing op assenstelsels/grids)
         /// </summary>
         public JZLine GridLine { get; set; }
     }
     /// <summary>
-    /// 存储空间元素(房间、区域等)基础信息的类
+    /// Klasse voor het opslaan van basisinformatie van ruimte-elementen (ruimte, zone, enz.)
     /// </summary>
     public class SpatialElementInfo
     {
         /// <summary>
-        /// 元素ID
+        /// Element-ID
         /// </summary>
         public int Id { get; set; }
         /// <summary>
-        /// 元素唯一ID
+        /// Uniek element-ID
         /// </summary>
         public string UniqueId { get; set; }
         /// <summary>
-        /// 名称
+        /// Naam
         /// </summary>
         public string Name { get; set; }
         /// <summary>
-        /// 族名称
+        /// Familienaam
         /// </summary>
         public string FamilyName { get; set; }
         /// <summary>
-        /// 编号
+        /// Nummer
         /// </summary>
         public string Number { get; set; }
         /// <summary>
-        /// 类别名称
+        /// Categorienaam
         /// </summary>
         public string Category { get; set; }
         /// <summary>
-        /// 内置类别(可选)
+        /// Ingebouwde categorie (optioneel)
         /// </summary>
         public string BuiltInCategory { get; set; }
         /// <summary>
-        /// 元素的.NET类名称
+        /// De .NET-klassenaam van het element
         /// </summary>
         public string ElementClass { get; set; }
         /// <summary>
-        /// 面积(单位mm²)
+        /// Oppervlakte (eenheid mm²)
         /// </summary>
         public double? Area { get; set; }
         /// <summary>
-        /// 体积(单位mm³)
+        /// Volume (eenheid mm³)
         /// </summary>
         public double? Volume { get; set; }
         /// <summary>
-        /// 周长(单位mm)
+        /// Omtrek (eenheid mm)
         /// </summary>
         public double? Perimeter { get; set; }
         /// <summary>
-        /// 所在标高
+        /// Bijbehorend peil
         /// </summary>
         public LevelInfo Level { get; set; }
 
         /// <summary>
-        /// 位置信息
+        /// Positie-informatie
         /// </summary>
         public BoundingBoxInfo BoundingBox { get; set; }
     }
     /// <summary>
-    /// 存储视图元素基础信息的类
+    /// Klasse voor het opslaan van basisinformatie van weergave-elementen
     /// </summary>
     public class ViewInfo
     {
         /// <summary>
-        /// 元素ID
+        /// Element-ID
         /// </summary>
         public int Id { get; set; }
         /// <summary>
-        /// 元素唯一ID
+        /// Uniek element-ID
         /// </summary>
         public string UniqueId { get; set; }
         /// <summary>
-        /// 名称
+        /// Naam
         /// </summary>
         public string Name { get; set; }
         /// <summary>
-        /// 族名称
+        /// Familienaam
         /// </summary>
         public string FamilyName { get; set; }
         /// <summary>
-        /// 类别名称
+        /// Categorienaam
         /// </summary>
         public string Category { get; set; }
         /// <summary>
-        /// 内置类别(可选)
+        /// Ingebouwde categorie (optioneel)
         /// </summary>
         public string BuiltInCategory { get; set; }
         /// <summary>
-        /// 元素的.NET类名称
+        /// De .NET-klassenaam van het element
         /// </summary>
         public string ElementClass { get; set; }
 
         /// <summary>
-        /// 视图类型
+        /// Weergavetype
         /// </summary>
         public string ViewType { get; set; }
 
         /// <summary>
-        /// 视图比例
+        /// Weergaveschaal
         /// </summary>
         public int? Scale { get; set; }
 
         /// <summary>
-        /// 是否为模板视图
+        /// Of het een sjabloonweergave is
         /// </summary>
         public bool IsTemplate { get; set; }
 
         /// <summary>
-        /// 详图级别
+        /// Detailniveau
         /// </summary>
         public string DetailLevel { get; set; }
 
         /// <summary>
-        /// 关联的标高
+        /// Gekoppeld peil
         /// </summary>
         public LevelInfo AssociatedLevel { get; set; }
 
         /// <summary>
-        /// 位置信息
+        /// Positie-informatie
         /// </summary>
         public BoundingBoxInfo BoundingBox { get; set; }
 
         /// <summary>
-        /// 视图是否已打开
+        /// Of de weergave geopend is
         /// </summary>
         public bool IsOpen { get; set; }
 
         /// <summary>
-        /// 是否是当前激活的视图
+        /// Of het de huidige actieve weergave is
         /// </summary>
         public bool IsActive { get; set; }
     }
     /// <summary>
-    /// 存储注释元素基础信息的类
+    /// Klasse voor het opslaan van basisinformatie van annotatie-elementen
     /// </summary>
     public class AnnotationInfo
     {
         /// <summary>
-        /// 元素ID
+        /// Element-ID
         /// </summary>
         public int Id { get; set; }
         /// <summary>
-        /// 元素唯一ID
+        /// Uniek element-ID
         /// </summary>
         public string UniqueId { get; set; }
         /// <summary>
-        /// 名称
+        /// Naam
         /// </summary>
         public string Name { get; set; }
         /// <summary>
-        /// 族名称
+        /// Familienaam
         /// </summary>
         public string FamilyName { get; set; }
         /// <summary>
-        /// 类别名称
+        /// Categorienaam
         /// </summary>
         public string Category { get; set; }
         /// <summary>
-        /// 内置类别(可选)
+        /// Ingebouwde categorie (optioneel)
         /// </summary>
         public string BuiltInCategory { get; set; }
         /// <summary>
-        /// 元素的.NET类名称
+        /// De .NET-klassenaam van het element
         /// </summary>
         public string ElementClass { get; set; }
         /// <summary>
-        /// 所在视图
+        /// Bijbehorende weergave
         /// </summary>
         public string OwnerView { get; set; }
         /// <summary>
-        /// 文本内容 (适用于文字标注)
+        /// Tekstinhoud (van toepassing op tekstannotaties)
         /// </summary>
         public string TextContent { get; set; }
         /// <summary>
-        /// 位置信息(单位mm)
+        /// Positie-informatie (eenheid mm)
         /// </summary>
         public JZPoint Position { get; set; }
 
         /// <summary>
-        /// 位置信息
+        /// Positie-informatie
         /// </summary>
         public BoundingBoxInfo BoundingBox { get; set; }
         /// <summary>
-        /// 尺寸值 (适用于尺寸标注)
+        /// Maatwaarde (van toepassing op maatvoeringen)
         /// </summary>
         public string DimensionValue { get; set; }
     }
     /// <summary>
-    /// 存储组和链接基础信息的类
+    /// Klasse voor het opslaan van basisinformatie van groepen en links
     /// </summary>
     public class GroupOrLinkInfo
     {
         /// <summary>
-        /// 元素ID
+        /// Element-ID
         /// </summary>
         public int Id { get; set; }
         /// <summary>
-        /// 元素唯一ID
+        /// Uniek element-ID
         /// </summary>
         public string UniqueId { get; set; }
         /// <summary>
-        /// 名称
+        /// Naam
         /// </summary>
         public string Name { get; set; }
         /// <summary>
-        /// 族名称
+        /// Familienaam
         /// </summary>
         public string FamilyName { get; set; }
         /// <summary>
-        /// 类别名称
+        /// Categorienaam
         /// </summary>
         public string Category { get; set; }
         /// <summary>
-        /// 内置类别(可选)
+        /// Ingebouwde categorie (optioneel)
         /// </summary>
         public string BuiltInCategory { get; set; }
         /// <summary>
-        /// 元素的.NET类名称
+        /// De .NET-klassenaam van het element
         /// </summary>
         public string ElementClass { get; set; }
         /// <summary>
-        /// 组成员数量
+        /// Aantal groepsleden
         /// </summary>
         public int? MemberCount { get; set; }
         /// <summary>
-        /// 组类型
+        /// Groepstype
         /// </summary>
         public string GroupType { get; set; }
         /// <summary>
-        /// 链接状态
+        /// Linkstatus
         /// </summary>
         public string LinkStatus { get; set; }
         /// <summary>
-        /// 链接路径
+        /// Linkpad
         /// </summary>
         public string LinkPath { get; set; }
         /// <summary>
-        /// 位置信息(单位mm)
+        /// Positie-informatie (eenheid mm)
         /// </summary>
         public JZPoint Position { get; set; }
 
         /// <summary>
-        /// 位置信息
+        /// Positie-informatie
         /// </summary>
         public BoundingBoxInfo BoundingBox { get; set; }
     }
     /// <summary>
-    /// 存储元素基础信息的增强类
+    /// Uitgebreide klasse voor het opslaan van basiselementinformatie
     /// </summary>
     public class ElementBasicInfo
     {
         /// <summary>
-        /// 元素ID
+        /// Element-ID
         /// </summary>
         public int Id { get; set; }
         /// <summary>
-        /// 元素唯一ID
+        /// Uniek element-ID
         /// </summary>
         public string UniqueId { get; set; }
         /// <summary>
-        /// 名称
+        /// Naam
         /// </summary>
         public string Name { get; set; }
         /// <summary>
-        /// 族名称
+        /// Familienaam
         /// </summary>
         public string FamilyName { get; set; }
         /// <summary>
-        /// 类别名称
+        /// Categorienaam
         /// </summary>
         public string Category { get; set; }
         /// <summary>
-        /// 内置类别(可选)
+        /// Ingebouwde categorie (optioneel)
         /// </summary>
         public string BuiltInCategory { get; set; }
 
         /// <summary>
-        /// 位置信息
+        /// Positie-informatie
         /// </summary>
         public BoundingBoxInfo BoundingBox { get; set; }
     }
@@ -1517,7 +1517,7 @@ namespace RevitMCPCommandSet.Services
 
 
     /// <summary>
-    /// 存储参数信息完整的自定义类
+    /// Aangepaste klasse voor het opslaan van volledige parameterinformatie
     /// </summary>
     public class ParameterInfo
     {
@@ -1526,7 +1526,7 @@ namespace RevitMCPCommandSet.Services
     }
 
     /// <summary>
-    /// 存储包围盒信息的自定义类
+    /// Aangepaste klasse voor het opslaan van bounding-boxinformatie
     /// </summary>
     public class BoundingBoxInfo
     {
@@ -1535,7 +1535,7 @@ namespace RevitMCPCommandSet.Services
     }
 
     /// <summary>
-    /// 存储标高信息的自定义类
+    /// Aangepaste klasse voor het opslaan van peilinformatie
     /// </summary>
     public class LevelInfo
     {

@@ -20,28 +20,28 @@ namespace RevitMCPCommandSet.Commands.Access
         {
             try
             {
-                // 解析参数
+                // Parameters parsen
                 List<string> modelCategoryList = parameters?["modelCategoryList"]?.ToObject<List<string>>() ?? new List<string>();
                 List<string> annotationCategoryList = parameters?["annotationCategoryList"]?.ToObject<List<string>>() ?? new List<string>();
                 bool includeHidden = parameters?["includeHidden"]?.Value<bool>() ?? false;
                 int limit = parameters?["limit"]?.Value<int>() ?? 100;
 
-                // 设置查询参数
+                // Queryparameters instellen
                 _handler.SetQueryParameters(modelCategoryList, annotationCategoryList, includeHidden, limit);
 
-                // 触发外部事件并等待完成
-                if (RaiseAndWaitForCompletion(60000)) // 60秒超时
+                // Extern event activeren en wachten op voltooiing
+                if (RaiseAndWaitForCompletion(60000)) // 60 seconden time-out
                 {
                     return _handler.ResultInfo;
                 }
                 else
                 {
-                    throw new TimeoutException("获取视图元素超时");
+                    throw new TimeoutException("Time-out bij ophalen van weergave-elementen");
                 }
             }
             catch (Exception ex)
             {
-                throw new Exception($"获取视图元素失败: {ex.Message}");
+                throw new Exception($"Ophalen van weergave-elementen mislukt: {ex.Message}");
             }
         }
     }

@@ -11,17 +11,17 @@ namespace RevitMCPCommandSet.Services
 {
     public class GetSelectedElementsEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
     {
-        // 执行结果
+        // Uitvoeringsresultaat
         public List<Models.Common.ElementInfo> ResultElements { get; private set; }
 
-        // 状态同步对象
+        // Object voor statussynchronisatie
         public bool TaskCompleted { get; private set; }
         private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
-        // 限制返回的元素数量
+        // Beperk het aantal geretourneerde elementen
         public int? Limit { get; set; }
 
-        // 实现IWaitableExternalEventHandler接口
+        // Implementatie van de IWaitableExternalEventHandler-interface
         public bool WaitForCompletion(int timeoutMilliseconds = 10000)
         {
             _resetEvent.Reset();
@@ -35,17 +35,17 @@ namespace RevitMCPCommandSet.Services
                 var uiDoc = app.ActiveUIDocument;
                 var doc = uiDoc.Document;
 
-                // 获取当前选中的元素
+                // Haal de momenteel geselecteerde elementen op
                 var selectedIds = uiDoc.Selection.GetElementIds();
                 var selectedElements = selectedIds.Select(id => doc.GetElement(id)).ToList();
 
-                // 应用数量限制
+                // Pas de aantalslimiet toe
                 if (Limit.HasValue && Limit.Value > 0)
                 {
                     selectedElements = selectedElements.Take(Limit.Value).ToList();
                 }
 
-                // 转换为ElementInfo列表
+                // Converteer naar een lijst van ElementInfo
                 ResultElements = selectedElements.Select(element => new ElementInfo
                 {
 #if REVIT2024_OR_GREATER
@@ -60,7 +60,7 @@ namespace RevitMCPCommandSet.Services
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("Error", "获取选中元素失败: " + ex.Message);
+                TaskDialog.Show("Error", "Ophalen van geselecteerde elementen mislukt: " + ex.Message);
                 ResultElements = new List<Models.Common.ElementInfo>();
             }
             finally
@@ -72,7 +72,7 @@ namespace RevitMCPCommandSet.Services
 
         public string GetName()
         {
-            return "获取选中元素";
+            return "Geselecteerde elementen ophalen";
         }
     }
 }

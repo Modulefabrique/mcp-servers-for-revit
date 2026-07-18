@@ -3,12 +3,12 @@
 namespace RevitMCPCommandSet.Models.Common;
 
 /// <summary>
-///     三维面
+///     3D-vlak
 /// </summary>
 public class JZFace
 {
     /// <summary>
-    ///     构造函数
+    ///     Constructor
     /// </summary>
     public JZFace()
     {
@@ -17,13 +17,13 @@ public class JZFace
     }
 
     /// <summary>
-    ///     外环（List<List<JZLine>> 类型）
+    ///     Buitenlus (van het type List&lt;List&lt;JZLine&gt;&gt;)
     /// </summary>
     [JsonProperty("outerLoop")]
     public List<JZLine> OuterLoop { get; set; }
 
     /// <summary>
-    ///     内环（List<JZLine> 类型，表示一个或多个内环）
+    ///     Binnenlussen (van het type List&lt;JZLine&gt;, representeert een of meer binnenlussen)
     /// </summary>
     [JsonProperty("innerLoops")]
     public List<List<JZLine>> InnerLoops { get; set; }

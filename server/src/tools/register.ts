@@ -4,14 +4,14 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 export async function registerTools(server: McpServer) {
-  // 获取当前文件的目录路径
+  // Verkrijg het directorypad van het huidige bestand
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
 
-  // 读取tools目录下的所有文件
+  // Lees alle bestanden in de tools-directory
   const files = fs.readdirSync(__dirname);
 
-  // 过滤出.ts或.js文件，但排除index文件和register文件
+  // Filter .ts- of .js-bestanden, maar sluit index- en register-bestanden uit
   const toolFiles = files.filter(
     (file) =>
       (file.endsWith(".ts") || file.endsWith(".js")) &&
@@ -21,28 +21,28 @@ export async function registerTools(server: McpServer) {
       file !== "register.js"
   );
 
-  // 动态导入并注册每个工具
+  // Importeer en registreer elke tool dynamisch
   for (const file of toolFiles) {
     try {
-      // 构建导入路径
+      // Bouw het importpad op
       const importPath = `./${file.replace(/\.(ts|js)$/, ".js")}`;
 
-      // 动态导入模块
+      // Importeer de module dynamisch
       const module = await import(importPath);
 
-      // 查找并执行注册函数
+      // Zoek en voer de registratiefunctie uit
       const registerFunctionName = Object.keys(module).find(
         (key) => key.startsWith("register") && typeof module[key] === "function"
       );
 
       if (registerFunctionName) {
         module[registerFunctionName](server);
-        console.error(`已注册工具: ${file}`);
+        console.error(`Tool geregistreerd: ${file}`);
       } else {
-        console.warn(`警告: 在文件 ${file} 中未找到注册函数`);
+        console.warn(`Waarschuwing: geen registratiefunctie gevonden in bestand ${file}`);
       }
     } catch (error) {
-      console.error(`注册工具 ${file} 时出错:`, error);
+      console.error(`Fout bij registreren van tool ${file}:`, error);
     }
   }
 }

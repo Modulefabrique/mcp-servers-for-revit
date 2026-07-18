@@ -11,12 +11,12 @@ namespace RevitMCPCommandSet.Commands
         private CreatePointElementEventHandler _handler => (CreatePointElementEventHandler)Handler;
 
         /// <summary>
-        /// 命令名称
+        /// Commandonaam
         /// </summary>
         public override string CommandName => "create_point_based_element";
 
         /// <summary>
-        /// 构造函数
+        /// Constructor
         /// </summary>
         /// <param name="uiApp">Revit UIApplication</param>
         public CreatePointElementCommand(UIApplication uiApp)
@@ -29,27 +29,27 @@ namespace RevitMCPCommandSet.Commands
             try
             {
                 List<PointElement> data = new List<PointElement>();
-                // 解析参数
+                // Parameters parsen
                 data = parameters["data"].ToObject<List<PointElement>>();
                 if (data == null)
-                    throw new ArgumentNullException(nameof(data), "AI传入数据为空");
+                    throw new ArgumentNullException(nameof(data), "AI-invoerdata is leeg");
 
-                // 设置点状构件体参数
+                // Puntvormige elementparameters instellen
                 _handler.SetParameters(data);
 
-                // 触发外部事件并等待完成
+                // Extern event activeren en wachten op voltooiing
                 if (RaiseAndWaitForCompletion(10000))
                 {
                     return _handler.Result;
                 }
                 else
                 {
-                    throw new TimeoutException("创建点状构件操作超时");
+                    throw new TimeoutException("Time-out bij aanmaken van puntvormig element");
                 }
             }
             catch (Exception ex)
             {
-                throw new Exception($"创建点状构件失败: {ex.Message}");
+                throw new Exception($"Aanmaken van puntvormig element mislukt: {ex.Message}");
             }
         }
     }

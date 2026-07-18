@@ -6,17 +6,17 @@ namespace RevitMCPCommandSet.Services
 {
     public class DeleteElementEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
     {
-        // 执行结果
+        // Uitvoeringsresultaat
         public bool IsSuccess { get; private set; }
 
-        // 成功删除的元素数量
+        // Aantal succesvol verwijderde elementen
         public int DeletedCount { get; private set; }
-        // 状态同步对象
+        // Object voor statussynchronisatie
         public bool TaskCompleted { get; private set; }
         private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
-        // 要删除的元素ID数组
+        // Array met de te verwijderen elementen-ID's
         public string[] ElementIds { get; set; }
-        // 实现IWaitableExternalEventHandler接口
+        // Implementatie van de IWaitableExternalEventHandler-interface
         public bool WaitForCompletion(int timeoutMilliseconds = 10000)
         {
             _resetEvent.Reset();
@@ -33,7 +33,7 @@ namespace RevitMCPCommandSet.Services
                     IsSuccess = false;
                     return;
                 }
-                // 创建待删除元素ID集合
+                // Maak een verzameling van te verwijderen elementen-ID's
                 List<ElementId> elementIdsToDelete = new List<ElementId>();
                 List<string> invalidIds = new List<string>();
                 foreach (var idStr in ElementIds)
@@ -41,7 +41,7 @@ namespace RevitMCPCommandSet.Services
                     if (int.TryParse(idStr, out int elementIdValue))
                     {
                         var elementId = new ElementId(elementIdValue);
-                        // 检查元素是否存在
+                        // Controleer of het element bestaat
                         if (doc.GetElement(elementId) != null)
                         {
                             elementIdsToDelete.Add(elementId);
@@ -54,16 +54,16 @@ namespace RevitMCPCommandSet.Services
                 }
                 if (invalidIds.Count > 0)
                 {
-                    TaskDialog.Show("警告", $"以下ID无效或元素不存在：{string.Join(", ", invalidIds)}");
+                    TaskDialog.Show("Waarschuwing", $"De volgende ID's zijn ongeldig of het element bestaat niet: {string.Join(", ", invalidIds)}");
                 }
-                // 如果有可删除的元素，则执行删除
+                // Voer de verwijdering uit als er te verwijderen elementen zijn
                 if (elementIdsToDelete.Count > 0)
                 {
                     using (var transaction = new Transaction(doc, "Delete Elements"))
                     {
                         transaction.Start();
 
-                        // 批量删除元素
+                        // Verwijder elementen in bulk
                         ICollection<ElementId> deletedIds = doc.Delete(elementIdsToDelete);
                         DeletedCount = deletedIds.Count;
 
@@ -73,13 +73,13 @@ namespace RevitMCPCommandSet.Services
                 }
                 else
                 {
-                    TaskDialog.Show("错误", "没有有效的元素可以删除");
+                    TaskDialog.Show("Fout", "Er zijn geen geldige elementen om te verwijderen");
                     IsSuccess = false;
                 }
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("错误", "删除元素失败: " + ex.Message);
+                TaskDialog.Show("Fout", "Verwijderen van elementen mislukt: " + ex.Message);
                 IsSuccess = false;
             }
             finally
@@ -90,7 +90,7 @@ namespace RevitMCPCommandSet.Services
         }
         public string GetName()
         {
-            return "删除元素";
+            return "Element verwijderen";
         }
     }
 }

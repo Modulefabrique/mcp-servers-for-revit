@@ -12,23 +12,23 @@ namespace RevitMCPCommandSet.Services
         private Document doc => uiDoc.Document;
         private Autodesk.Revit.ApplicationServices.Application app => uiApp.Application;
         /// <summary>
-        /// 事件等待对象
+        /// Event-wachtobject
         /// </summary>
         private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
         /// <summary>
-        /// 创建数据（传入数据）
+        /// Aan te maken data (invoerdata)
         /// </summary>
         public List<SurfaceElement> CreatedInfo { get; private set; }
         /// <summary>
-        /// 执行结果（传出数据）
+        /// Uitvoeringsresultaat (uitvoerdata)
         /// </summary>
         public AIResult<List<int>> Result { get; private set; }
-        public string _floorName = "常规 - ";
+        public string _floorName = "Algemeen - ";
         public bool _structural = true;
         private List<string> _warnings = new List<string>();
 
         /// <summary>
-        /// 设置创建的参数
+        /// Stelt de aanmaakparameters in
         /// </summary>
         public void SetParameters(List<SurfaceElement> data)
         {
@@ -46,11 +46,11 @@ namespace RevitMCPCommandSet.Services
                 foreach (var data in CreatedInfo)
                 {
                     int requestedTypeId = data.TypeId;
-                    // Step0 获取构件类型
+                    // Stap 0: bouwdeeltype ophalen
                     BuiltInCategory builtInCategory = BuiltInCategory.INVALID;
                     Enum.TryParse(data.Category.Replace(".", "").Replace("BuiltInCategory", ""), true, out builtInCategory);
 
-                    // Step1 获取标高和偏移
+                    // Stap 1: peil en offset ophalen
                     Level baseLevel = null;
                     Level topLevel = null;
                     double topOffset = -1;  // ft
@@ -62,7 +62,7 @@ namespace RevitMCPCommandSet.Services
                     if (baseLevel == null)
                         continue;
 
-                    // Step2 获取族类型
+                    // Stap 2: familietype ophalen
                     FamilySymbol symbol = null;
                     FloorType floorType = null;
                     RoofType roofType = null;
@@ -76,7 +76,7 @@ namespace RevitMCPCommandSet.Services
                             if (typeEle != null && typeEle is FamilySymbol)
                             {
                                 symbol = typeEle as FamilySymbol;
-                                // 获取symbol的Category对象并转换为BuiltInCategory枚举
+                                // Haal het Category-object van symbol op en converteer naar BuiltInCategory-enum
                                 builtInCategory = (BuiltInCategory)symbol.Category.Id.GetIntValue();
                             }
                             else if (typeEle != null && typeEle is FloorType)
@@ -167,7 +167,7 @@ namespace RevitMCPCommandSet.Services
                                     .OfClass(typeof(FamilySymbol))
                                     .OfCategory(builtInCategory)
                                     .Cast<FamilySymbol>()
-                                    .FirstOrDefault(fs => fs.IsActive); // 获取激活的类型作为默认类型
+                                    .FirstOrDefault(fs => fs.IsActive); // Actieve type als standaardtype gebruiken
                                 if (symbol == null)
                                 {
                                     symbol = new FilteredElementCollector(doc)
@@ -182,9 +182,9 @@ namespace RevitMCPCommandSet.Services
                             break;
                     }
 
-                    // Step3 批量创建楼板
+                    // Stap 3: vloeren in bulk aanmaken
                     Floor floor = null;
-                    using (Transaction transaction = new Transaction(doc, "创建面状构件"))
+                    using (Transaction transaction = new Transaction(doc, "Vlakelement aanmaken"))
                     {
                         transaction.Start();
 
@@ -198,13 +198,13 @@ namespace RevitMCPCommandSet.Services
                                 }
                                 CurveLoop curveLoop = CurveLoop.Create(data.Boundary.OuterLoop.Select(l => JZLine.ToLine(l) as Curve).ToList());
 
-                                // 多版本 - Floor.Create introduced in Revit 2022 but stable in 2023+
+                                // Floor.Create introduced in Revit 2022 but stable in 2023+
 #if REVIT2023_OR_GREATER
                                 floor = Floor.Create(doc, new List<CurveLoop> { curveLoop }, floorType.Id, baseLevel.Id);
 #else
                                 floor = doc.Create.NewFloor(curves, floorType, baseLevel, _structural);
 #endif
-                                //编辑楼板参数
+                                // Vloerparameters bewerken
                                 if (floor != null)
                                 {
                                     floor.get_Parameter(BuiltInParameter.FLOOR_HEIGHTABOVELEVEL_PARAM).Set(baseOffset);
@@ -282,21 +282,21 @@ namespace RevitMCPCommandSet.Services
                 Result = new AIResult<List<int>>
                 {
                     Success = false,
-                    Message = $"创建面状构件时出错: {ex.Message}",
+                    Message = $"Fout bij het aanmaken van vlakelement: {ex.Message}",
                 };
-                TaskDialog.Show("错误", $"创建面状构件时出错: {ex.Message}");
+                TaskDialog.Show("Fout", $"Fout bij het aanmaken van vlakelement: {ex.Message}");
             }
             finally
             {
-                _resetEvent.Set(); // 通知等待线程操作已完成
+                _resetEvent.Set(); // Meldt het wachtende thread dat de bewerking is voltooid
             }
         }
 
         /// <summary>
-        /// 等待创建完成
+        /// Wacht tot het aanmaken is voltooid
         /// </summary>
-        /// <param name="timeoutMilliseconds">超时时间（毫秒）</param>
-        /// <returns>操作是否在超时前完成</returns>
+        /// <param name="timeoutMilliseconds">Time-out (milliseconden)</param>
+        /// <returns>Of de bewerking is voltooid vóór de time-out</returns>
         public bool WaitForCompletion(int timeoutMilliseconds = 10000)
         {
             _resetEvent.Reset();
@@ -304,61 +304,61 @@ namespace RevitMCPCommandSet.Services
         }
 
         /// <summary>
-        /// IExternalEventHandler.GetName 实现
+        /// IExternalEventHandler.GetName-implementatie
         /// </summary>
         public string GetName()
         {
-            return "创建面状构件";
+            return "Vlakelement aanmaken";
         }
 
         /// <summary>
-        /// 获取或创建指定厚度的楼板类型
+        /// Haalt het vloertype met de opgegeven dikte op of maakt het aan
         /// </summary>
-        /// <param name="thickness">目标厚度（ft）</param>
-        /// <returns>符合厚度要求的楼板类型</returns>
+        /// <param name="thickness">Doeldikte (ft)</param>
+        /// <returns>Vloertype dat aan de dikte-eis voldoet</returns>
         private FloorType CreateOrGetFloorType(Document doc, double thickness = 200 / 304.8)
         {
 
-            // 查找匹配厚度的楼板类型
+            // Zoek naar een vloertype met de overeenkomende dikte
             FloorType existingType = new FilteredElementCollector(doc)
-                                     .OfClass(typeof(FloorType))                    // 仅获取FloorType类
-                                     .OfCategory(BuiltInCategory.OST_Floors)        // 仅获取楼板类别
-                                     .Cast<FloorType>()                            // 转换为FloorType类型
+                                     .OfClass(typeof(FloorType))                    // Alleen FloorType-klasse ophalen
+                                     .OfCategory(BuiltInCategory.OST_Floors)        // Alleen de categorie Vloeren ophalen
+                                     .Cast<FloorType>()                            // Converteren naar FloorType
                                      .FirstOrDefault(w => w.Name == $"{_floorName}{thickness * 304.8}mm");
             if (existingType != null)
                 return existingType;
-            // 如果没有找到匹配的楼板类型，创建新的
+            // Als er geen overeenkomend vloertype is gevonden, een nieuwe aanmaken
             FloorType baseFloorType = existingType = new FilteredElementCollector(doc)
-                                     .OfClass(typeof(FloorType))                    // 仅获取FloorType类
-                                     .OfCategory(BuiltInCategory.OST_Floors)        // 仅获取楼板类别
-                                     .Cast<FloorType>()                            // 转换为FloorType类型
-                                     .FirstOrDefault(w => w.Name.Contains("常规"));
+                                     .OfClass(typeof(FloorType))                    // Alleen FloorType-klasse ophalen
+                                     .OfCategory(BuiltInCategory.OST_Floors)        // Alleen de categorie Vloeren ophalen
+                                     .Cast<FloorType>()                            // Converteren naar FloorType
+                                     .FirstOrDefault(w => w.Name.Contains("Algemeen"));
             if (existingType != null)
             {
                 baseFloorType = existingType = new FilteredElementCollector(doc)
-                                     .OfClass(typeof(FloorType))                    // 仅获取FloorType类
-                                     .OfCategory(BuiltInCategory.OST_Floors)        // 仅获取楼板类别
-                                     .Cast<FloorType>()                            // 转换为FloorType类型
+                                     .OfClass(typeof(FloorType))                    // Alleen FloorType-klasse ophalen
+                                     .OfCategory(BuiltInCategory.OST_Floors)        // Alleen de categorie Vloeren ophalen
+                                     .Cast<FloorType>()                            // Converteren naar FloorType
                                      .FirstOrDefault();
             }
 
-            // 复制楼板类型
+            // Vloertype dupliceren
             FloorType newFloorType = null;
             newFloorType = baseFloorType.Duplicate($"{_floorName}{thickness * 304.8}mm") as FloorType;
 
-            // 设置新楼板类型的厚度
-            // 获取构造层设置
+            // Dikte van het nieuwe vloertype instellen
+            // Laagopbouw (constructie) ophalen
             CompoundStructure cs = newFloorType.GetCompoundStructure();
             if (cs != null)
             {
-                // 获取所有层
+                // Alle lagen ophalen
                 IList<CompoundStructureLayer> layers = cs.GetLayers();
                 if (layers.Count > 0)
                 {
-                    // 计算当前总厚度
+                    // Huidige totale dikte berekenen
                     double currentTotalThickness = cs.GetWidth();
 
-                    // 按比例调整每层厚度
+                    // Dikte van elke laag proportioneel aanpassen
                     for (int i = 0; i < layers.Count; i++)
                     {
                         CompoundStructureLayer layer = layers[i];
@@ -366,7 +366,7 @@ namespace RevitMCPCommandSet.Services
                         cs.SetLayerWidth(i, newLayerThickness);
                     }
 
-                    // 应用修改后的构造层设置
+                    // Aangepaste laagopbouw toepassen
                     newFloorType.SetCompoundStructure(cs);
                 }
             }

@@ -10,20 +10,20 @@ namespace RevitMCPCommandSet.Utils
     public static class ProjectUtils
     {
         /// <summary>
-        /// 创建族实例的通用方法
+        /// Algemene methode voor het maken van een familie-instantie
         /// </summary>
-        /// <param name="doc">当前文档</param>
-        /// <param name="familySymbol">族类型</param>
-        /// <param name="locationPoint">位置点</param>
-        /// <param name="locationLine">基准线</param>
-        /// <param name="baseLevel">底部标高</param>
-        /// <param name="topLevel">第二个标高(用于TwoLevelsBased)</param>
-        /// <param name="baseOffset">底部偏移（ft）</param>
-        /// <param name="topOffset">顶部偏移（ft）</param>
-        /// <param name="faceDirection">参考方向</param>
-        /// <param name="handDirection">参考方向</param>
-        /// <param name="view">视图</param>
-        /// <returns>创建的族实例，失败返回null</returns>
+        /// <param name="doc">Huidig document</param>
+        /// <param name="familySymbol">Familietype</param>
+        /// <param name="locationPoint">Locatiepunt</param>
+        /// <param name="locationLine">Basislijn</param>
+        /// <param name="baseLevel">Onderste peil</param>
+        /// <param name="topLevel">Tweede peil (voor TwoLevelsBased)</param>
+        /// <param name="baseOffset">Onderste verschuiving (ft)</param>
+        /// <param name="topOffset">Bovenste verschuiving (ft)</param>
+        /// <param name="faceDirection">Referentierichting</param>
+        /// <param name="handDirection">Referentierichting</param>
+        /// <param name="view">Aanzicht</param>
+        /// <returns>De aangemaakte familie-instantie, retourneert null bij falen</returns>
         public static FamilyInstance CreateInstance(
             this Document doc,
             FamilySymbol familySymbol,
@@ -39,48 +39,48 @@ namespace RevitMCPCommandSet.Utils
             Element explicitHost = null,
             bool snapToHostCenter = true)
         {
-            // 基本参数检查
+            // Basiscontrole van parameters
             if (doc == null)
-                throw new ArgumentNullException($"必要参数{typeof(Document)} {nameof(doc)}缺失！");
+                throw new ArgumentNullException($"Verplichte parameter {typeof(Document)} {nameof(doc)} ontbreekt!");
             if (familySymbol == null)
-                throw new ArgumentNullException($"必要参数{typeof(FamilySymbol)} {nameof(familySymbol)}缺失！");
+                throw new ArgumentNullException($"Verplichte parameter {typeof(FamilySymbol)} {nameof(familySymbol)} ontbreekt!");
 
-            // 激活族模型
+            // Activeer het familietype
             if (!familySymbol.IsActive)
                 familySymbol.Activate();
 
             FamilyInstance instance = null;
 
-            // 根据族的放置类型选择创建方法
+            // Kies de aanmaakmethode op basis van het plaatsingstype van de familie
             switch (familySymbol.Family.FamilyPlacementType)
             {
-                // 基于单个标高的族（如：公制常规模型）
+                // Familie gebaseerd op één peil (bijv. metrisch generiek model)
                 case FamilyPlacementType.OneLevelBased:
                     if (locationPoint == null)
-                        throw new ArgumentNullException($"必要参数{typeof(XYZ)} {nameof(locationPoint)}缺失！");
-                    // 带标高信息
+                        throw new ArgumentNullException($"Verplichte parameter {typeof(XYZ)} {nameof(locationPoint)} ontbreekt!");
+                    // Met peilinformatie
                     if (baseLevel != null)
                     {
                         instance = doc.Create.NewFamilyInstance(
-                            locationPoint,                  // 实例将被放置的物理位置
-                            familySymbol,                   // 表示要插入的实例类型的 FamilySymbol 对象
-                            baseLevel,                      // 用作对象基准标高的 Level 对象
-                            StructuralType.NonStructural);  // 如果是结构构件，则指定构件的类型
+                            locationPoint,                  // De fysieke locatie waar de instantie wordt geplaatst
+                            familySymbol,                   // Het FamilySymbol-object dat het te plaatsen instantietype vertegenwoordigt
+                            baseLevel,                      // Het Level-object dat als basispeil van het object dient
+                            StructuralType.NonStructural);  // Geeft het type constructie-element aan, indien van toepassing
                     }
-                    // 不带标高信息
+                    // Zonder peilinformatie
                     else
                     {
                         instance = doc.Create.NewFamilyInstance(
-                            locationPoint,                  // 实例将被放置的物理位置
-                            familySymbol,                   // 表示要插入的实例类型的 FamilySymbol 对象
-                            StructuralType.NonStructural);  // 如果是结构构件，则指定构件的类型
+                            locationPoint,                  // De fysieke locatie waar de instantie wordt geplaatst
+                            familySymbol,                   // Het FamilySymbol-object dat het te plaatsen instantietype vertegenwoordigt
+                            StructuralType.NonStructural);  // Geeft het type constructie-element aan, indien van toepassing
                     }
                     break;
 
-                // 基于单个标高和主体的族（如：门、窗）
+                // Familie gebaseerd op één peil en een host (bijv. deuren, ramen)
                 case FamilyPlacementType.OneLevelBasedHosted:
                     if (locationPoint == null)
-                        throw new ArgumentNullException($"必要参数{typeof(XYZ)} {nameof(locationPoint)}缺失！");
+                        throw new ArgumentNullException($"Verplichte parameter {typeof(XYZ)} {nameof(locationPoint)} ontbreekt!");
 
                     Element host = explicitHost;
                     XYZ placementPoint = locationPoint;
@@ -116,7 +116,7 @@ namespace RevitMCPCommandSet.Utils
                     }
 
                     if (host == null)
-                        throw new ArgumentNullException($"找不到合规的的宿主信息！");
+                        throw new ArgumentNullException($"Geen geldige hostinformatie gevonden!");
 
                     if (baseLevel != null)
                     {
@@ -147,25 +147,25 @@ namespace RevitMCPCommandSet.Utils
                     }
                     break;
 
-                // 基于两个标高的族（如：柱子）
+                // Familie gebaseerd op twee peilen (bijv. kolommen)
                 case FamilyPlacementType.TwoLevelsBased:
                     if (locationPoint == null)
-                        throw new ArgumentNullException($"必要参数{typeof(XYZ)} {nameof(locationPoint)}缺失！");
+                        throw new ArgumentNullException($"Verplichte parameter {typeof(XYZ)} {nameof(locationPoint)} ontbreekt!");
                     if (baseLevel == null)
-                        throw new ArgumentNullException($"必要参数{typeof(Level)} {nameof(baseLevel)}缺失！");
-                    // 判断是结构柱还是建筑柱
+                        throw new ArgumentNullException($"Verplichte parameter {typeof(Level)} {nameof(baseLevel)} ontbreekt!");
+                    // Bepaal of het een constructiekolom of een bouwkundige kolom is
                     StructuralType structuralType = StructuralType.NonStructural;
                     if (familySymbol.Category.Id.GetIntValue() == (int)BuiltInCategory.OST_StructuralColumns)
                         structuralType = StructuralType.Column;
                     instance = doc.Create.NewFamilyInstance(
-                        locationPoint,              // 实例将被放置的物理位置
-                        familySymbol,               // 表示要插入的实例类型的 FamilySymbol 对象
-                        baseLevel,                  // 用作对象基准标高的 Level 对象
-                        structuralType);            // 如果是结构构件，则指定构件的类型
-                    // 设置底部标高、顶部标高、底部偏移、顶部偏移
+                        locationPoint,              // De fysieke locatie waar de instantie wordt geplaatst
+                        familySymbol,               // Het FamilySymbol-object dat het te plaatsen instantietype vertegenwoordigt
+                        baseLevel,                  // Het Level-object dat als basispeil van het object dient
+                        structuralType);            // Geeft het type constructie-element aan, indien van toepassing
+                    // Stel onderste peil, bovenste peil, onderste verschuiving en bovenste verschuiving in
                     if (instance != null)
                     {
-                        // 设置柱子的基准标高和顶部标高
+                        // Stel het basispeil en bovenste peil van de kolom in
                         if (baseLevel != null)
                         {
                             Parameter baseLevelParam = instance.get_Parameter(BuiltInParameter.FAMILY_BASE_LEVEL_PARAM);
@@ -178,24 +178,24 @@ namespace RevitMCPCommandSet.Utils
                             if (topLevelParam != null)
                                 topLevelParam.Set(topLevel.Id);
                         }
-                        // 获取底部偏移参数
+                        // Haal de parameter voor onderste verschuiving op
                         if (baseOffset != -1)
                         {
                             Parameter baseOffsetParam = instance.get_Parameter(BuiltInParameter.FAMILY_BASE_LEVEL_OFFSET_PARAM);
                             if (baseOffsetParam != null && baseOffsetParam.StorageType == StorageType.Double)
                             {
-                                // 将毫米转换为Revit内部单位
+                                // Converteer millimeters naar Revit-interne eenheden
                                 double baseOffsetInternal = baseOffset;
                                 baseOffsetParam.Set(baseOffsetInternal);
                             }
                         }
-                        // 获取顶部偏移参数
+                        // Haal de parameter voor bovenste verschuiving op
                         if (topOffset != -1)
                         {
                             Parameter topOffsetParam = instance.get_Parameter(BuiltInParameter.FAMILY_TOP_LEVEL_OFFSET_PARAM);
                             if (topOffsetParam != null && topOffsetParam.StorageType == StorageType.Double)
                             {
-                                // 将毫米转换为Revit内部单位
+                                // Converteer millimeters naar Revit-interne eenheden
                                 double topOffsetInternal = topOffset;
                                 topOffsetParam.Set(topOffsetInternal);
                             }
@@ -203,68 +203,68 @@ namespace RevitMCPCommandSet.Utils
                     }
                     break;
 
-                // 族是视图专有的（例如，详图注释）
+                // De familie is specifiek voor een aanzicht (bijvoorbeeld, detailaantekeningen)
                 case FamilyPlacementType.ViewBased:
                     if (locationPoint == null)
-                        throw new ArgumentNullException($"必要参数{typeof(XYZ)} {nameof(locationPoint)}缺失！");
+                        throw new ArgumentNullException($"Verplichte parameter {typeof(XYZ)} {nameof(locationPoint)} ontbreekt!");
                     instance = doc.Create.NewFamilyInstance(
-                        locationPoint,  // 族实例的原点。如果创建在平面视图（ViewPlan）上，该原点将被投影到平面视图上
-                        familySymbol,   // 表示要插入的实例类型的族符号对象
-                        view);          // 放置族实例的2D视图
+                        locationPoint,  // De oorsprong van de familie-instantie. Bij het maken in een plattegrond (ViewPlan) wordt deze op de plattegrond geprojecteerd
+                        familySymbol,   // Het familiesymbool-object dat het te plaatsen instantietype vertegenwoordigt
+                        view);          // Het 2D-aanzicht waarin de familie-instantie wordt geplaatst
                     break;
 
-                // 基于工作平面的族（如：基于面的公制常规模型，包括基于面、基于墙等）
+                // Familie gebaseerd op een werkvlak (bijv. vlakgebaseerd metrisch generiek model, inclusief vlak-gebaseerd, wand-gebaseerd, enz.)
                 case FamilyPlacementType.WorkPlaneBased:
                     if (locationPoint == null)
-                        throw new ArgumentNullException($"必要参数{typeof(XYZ)} {nameof(locationPoint)}缺失！");
-                    // 获取最近的宿主面
+                        throw new ArgumentNullException($"Verplichte parameter {typeof(XYZ)} {nameof(locationPoint)} ontbreekt!");
+                    // Haal het dichtstbijzijnde hostvlak op
                     Reference hostFace = doc.GetNearestFaceReference(locationPoint, 1000 / 304.8);
                     if (hostFace == null)
-                        throw new ArgumentNullException($"找不到合规的的宿主信息！");
+                        throw new ArgumentNullException($"Geen geldige hostinformatie gevonden!");
                     if (faceDirection == null || faceDirection == XYZ.Zero)
                     {
                         var result = doc.GenerateDefaultOrientation(hostFace);
                         faceDirection = result.FacingOrientation;
                     }
-                    // 使用点和方向在面上创建族实例
+                    // Maak de familie-instantie op het vlak met een punt en richting
                     instance = doc.Create.NewFamilyInstance(
-                        hostFace,               // 对面的引用  
-                        locationPoint,          // 实例将被放置的面上的点
-                        faceDirection,          // 定义族实例方向的向量。请注意，此方向定义了实例在面上的旋转，因此不能与面法线平行
-                        familySymbol);          // 表示要插入的实例类型的 FamilySymbol 对象。请注意，此FamilySymbol必须表示 FamilyPlacementType 为 WorkPlaneBased 的族
+                        hostFace,               // Referentie naar het vlak
+                        locationPoint,          // Het punt op het vlak waar de instantie wordt geplaatst
+                        faceDirection,          // Vector die de oriëntatie van de familie-instantie bepaalt. Let op: deze richting bepaalt de rotatie van de instantie op het vlak en mag daarom niet evenwijdig zijn aan de vlaknormaal
+                        familySymbol);          // Het FamilySymbol-object dat het te plaatsen instantietype vertegenwoordigt. Let op: dit FamilySymbol moet een familie vertegenwoordigen waarvan het FamilyPlacementType WorkPlaneBased is
                     break;
 
-                // 基于线且在工作平面上的族（如：基于线的公制常规模型）
+                // Familie gebaseerd op een lijn binnen een werkvlak (bijv. lijngebaseerd metrisch generiek model)
                 case FamilyPlacementType.CurveBased:
                     if (locationLine == null)
-                        throw new ArgumentNullException($"必要参数{typeof(Line)} {nameof(locationLine)}缺失！");
+                        throw new ArgumentNullException($"Verplichte parameter {typeof(Line)} {nameof(locationLine)} ontbreekt!");
 
-                    // 获取最近的宿主面（不允许有误差）
+                    // Haal het dichtstbijzijnde hostvlak op (geen afwijking toegestaan)
                     Reference lineHostFace = doc.GetNearestFaceReference(locationLine.Evaluate(0.5, true), 1e-5);
                     if (lineHostFace != null)
                     {
                         instance = doc.Create.NewFamilyInstance(
-                            lineHostFace,   // 对面的引用 
-                            locationLine,   // 族实例基于的曲线
-                            familySymbol);  // 一个FamilySymbol对象，表示要插入的实例的类型。请注意，此Symbol必须表示其 FamilyPlacementType 为 WorkPlaneBased 或 CurveBased 的族
+                            lineHostFace,   // Referentie naar het vlak
+                            locationLine,   // De curve waarop de familie-instantie is gebaseerd
+                            familySymbol);  // Een FamilySymbol-object dat het te plaatsen instantietype vertegenwoordigt. Let op: dit Symbol moet een familie vertegenwoordigen waarvan het FamilyPlacementType WorkPlaneBased of CurveBased is
                     }
                     else
                     {
                         instance = doc.Create.NewFamilyInstance(
-                            locationLine,                   // 族实例基于的曲线
-                            familySymbol,                   // 一个FamilySymbol对象，表示要插入的实例的类型。请注意，此Symbol必须表示其 FamilyPlacementType 为 WorkPlaneBased 或 CurveBased 的族
-                            baseLevel,                      // 一个Level对象，用作该对象的基准标高
-                            StructuralType.NonStructural);  // 如果是结构构件，则指定构件的类型
+                            locationLine,                   // De curve waarop de familie-instantie is gebaseerd
+                            familySymbol,                   // Een FamilySymbol-object dat het te plaatsen instantietype vertegenwoordigt. Let op: dit Symbol moet een familie vertegenwoordigen waarvan het FamilyPlacementType WorkPlaneBased of CurveBased is
+                            baseLevel,                      // Een Level-object dat als basispeil van het object dient
+                            StructuralType.NonStructural);  // Geeft het type constructie-element aan, indien van toepassing
                     }
                     if (instance != null)
                     {
-                        // 获取底部偏移参数
+                        // Haal de parameter voor onderste verschuiving op
                         if (baseOffset != -1)
                         {
                             Parameter baseOffsetParam = instance.get_Parameter(BuiltInParameter.INSTANCE_FREE_HOST_OFFSET_PARAM);
                             if (baseOffsetParam != null && baseOffsetParam.StorageType == StorageType.Double)
                             {
-                                // 将毫米转换为Revit内部单位
+                                // Converteer millimeters naar Revit-interne eenheden
                                 double baseOffsetInternal = baseOffset;
                                 baseOffsetParam.Set(baseOffsetInternal);
                             }
@@ -272,34 +272,34 @@ namespace RevitMCPCommandSet.Utils
                     }
                     break;
 
-                // 基于线且在特定视图中的族（如：详图组件）
+                // Familie gebaseerd op een lijn binnen een specifiek aanzicht (bijv. detailcomponenten)
                 case FamilyPlacementType.CurveBasedDetail:
                     if (locationLine == null)
-                        throw new ArgumentNullException($"必要参数{typeof(Line)} {nameof(locationLine)}缺失！");
+                        throw new ArgumentNullException($"Verplichte parameter {typeof(Line)} {nameof(locationLine)} ontbreekt!");
                     if (view == null)
-                        throw new ArgumentNullException($"必要参数{typeof(View)} {nameof(view)}缺失！");
+                        throw new ArgumentNullException($"Verplichte parameter {typeof(View)} {nameof(view)} ontbreekt!");
                     instance = doc.Create.NewFamilyInstance(
-                        locationLine,   // 族实例的线位置。该线必须位于视图平面内
-                        familySymbol,   // 表示要插入的实例类型的族符号对象
-                        view);          // 放置族实例的2D视图
+                        locationLine,   // De lijnpositie van de familie-instantie. Deze lijn moet in het aanzichtvlak liggen
+                        familySymbol,   // Het familiesymbool-object dat het te plaatsen instantietype vertegenwoordigt
+                        view);          // Het 2D-aanzicht waarin de familie-instantie wordt geplaatst
                     break;
 
-                // 结构曲线驱动的族（如：梁、支撑或斜柱）
+                // Structureel curvegestuurde familie (bijv. balken, schoren of schuine kolommen)
                 case FamilyPlacementType.CurveDrivenStructural:
                     if (locationLine == null)
-                        throw new ArgumentNullException($"必要参数{typeof(Line)} {nameof(locationLine)}缺失！");
+                        throw new ArgumentNullException($"Verplichte parameter {typeof(Line)} {nameof(locationLine)} ontbreekt!");
                     if (baseLevel == null)
-                        throw new ArgumentNullException($"必要参数{typeof(Level)} {nameof(baseLevel)}缺失！");
+                        throw new ArgumentNullException($"Verplichte parameter {typeof(Level)} {nameof(baseLevel)} ontbreekt!");
                     instance = doc.Create.NewFamilyInstance(
-                        locationLine,                   // 族实例基于的曲线
-                        familySymbol,                   // 一个FamilySymbol对象，表示要插入的实例的类型。请注意，此Symbol必须表示其 FamilyPlacementType 为 WorkPlaneBased 或 CurveBased 的族
-                        baseLevel,                      // 一个Level对象，用作该对象的基准标高
-                        StructuralType.Beam);           // 如果是结构构件，则指定构件的类型
+                        locationLine,                   // De curve waarop de familie-instantie is gebaseerd
+                        familySymbol,                   // Een FamilySymbol-object dat het te plaatsen instantietype vertegenwoordigt. Let op: dit Symbol moet een familie vertegenwoordigen waarvan het FamilyPlacementType WorkPlaneBased of CurveBased is
+                        baseLevel,                      // Een Level-object dat als basispeil van het object dient
+                        StructuralType.Beam);           // Geeft het type constructie-element aan, indien van toepassing
                     break;
 
-                // 适应性族（如：自适应公制常规模型、幕墙嵌板）
+                // Adaptieve familie (bijv. adaptief metrisch generiek model, gevelpaneel)
                 case FamilyPlacementType.Adaptive:
-                    throw new NotImplementedException("未实现FamilyPlacementType.Adaptive创建方法！");
+                    throw new NotImplementedException("De aanmaakmethode voor FamilyPlacementType.Adaptive is niet geïmplementeerd!");
 
                 default:
                     break;
@@ -308,60 +308,60 @@ namespace RevitMCPCommandSet.Utils
         }
 
         /// <summary>
-        /// 生成默认的朝向和手向（默认长边是HandOrientation，短边是FacingOrientation）
+        /// Genereert de standaard oriëntatie- en handrichting (standaard is de lange zijde de HandOrientation en de korte zijde de FacingOrientation)
         /// </summary>
         /// <param name="hostFace"></param>
         /// <returns></returns>
         public static (XYZ FacingOrientation, XYZ HandOrientation) GenerateDefaultOrientation(this Document doc, Reference hostFace)
         {
-            var facingOrientation = new XYZ();  // 朝向方向：族内Y轴正方向在载入后的朝向
-            var handOrientation = new XYZ();    // 手向方向：族内X轴正方向在载入后的朝向
+            var facingOrientation = new XYZ();  // Oriëntatierichting: de richting van de positieve Y-as van de familie na het laden
+            var handOrientation = new XYZ();    // Handrichting: de richting van de positieve X-as van de familie na het laden
 
-            // Step1 从Reference中获取面对象
+            // Stap 1: haal het vlak-object op uit de Reference
             Face face = doc.GetElement(hostFace.ElementId).GetGeometryObjectFromReference(hostFace) as Face;
 
-            // Step2 获取面轮廓
+            // Stap 2: haal het contour van het vlak op
             List<Curve> profile = null;
-            // 轮廓线集合，每个子列表代表一个完整闭合轮廓，第一个通常为外轮廓
+            // Verzameling van contourlijnen; elke sublijst vertegenwoordigt een volledig gesloten contour, de eerste is meestal de buitencontour
             List<List<Curve>> profiles = new List<List<Curve>>();
-            // 获取所有轮廓循环（外轮廓和可能的内部孔洞）
+            // Haal alle contourlussen op (buitencontour en eventuele binnengaten)
             EdgeArrayArray edgeLoops = face.EdgeLoops;
-            // 遍历每个轮廓循环
+            // Doorloop elke contourlus
             foreach (EdgeArray loop in edgeLoops)
             {
                 List<Curve> currentLoop = new List<Curve>();
-                // 获取循环中的每条边
+                // Haal elke rand in de lus op
                 foreach (Edge edge in loop)
                 {
                     Curve curve = edge.AsCurve();
                     currentLoop.Add(curve);
                 }
-                // 如果当前循环有边，则添加到结果集合
+                // Voeg toe aan de resultaatverzameling als de huidige lus randen bevat
                 if (currentLoop.Count > 0)
                 {
                     profiles.Add(currentLoop);
                 }
             }
-            // 第一个通常为外轮廓
+            // De eerste is meestal de buitencontour
             if (profiles != null && profiles.Any())
                 profile = profiles.FirstOrDefault();
 
-            // Step3 获取面法向量
+            // Stap 3: haal de normaalvector van het vlak op
             XYZ faceNormal = null;
-            // 如果是平面，可以直接获取法向量属性
+            // Als het een plat vlak is, kan de normaalvector-eigenschap direct worden opgehaald
             if (face is PlanarFace planarFace)
                 faceNormal = planarFace.FaceNormal;
 
-            // Step4 获取面的两个合规的（符合右手螺旋定则）主方向
+            // Stap 4: haal de twee geldige hoofdrichtingen van het vlak op (volgens de rechterhandregel)
             var result = face.GetMainDirections();
             var primaryDirection = result.PrimaryDirection;
             var secondaryDirection = result.SecondaryDirection;
 
-            // 默认长边方向就是HandOrientation，短边方向就是FacingOrientation
+            // Standaard is de richting van de lange zijde de HandOrientation en die van de korte zijde de FacingOrientation
             facingOrientation = primaryDirection;
             handOrientation = secondaryDirection;
 
-            // 判断是否符合右手定则（拇指：HandOrientation，食指：FacingOrientation，中指：FaceNormal）
+            // Controleer of dit voldoet aan de rechterhandregel (duim: HandOrientation, wijsvinger: FacingOrientation, middelvinger: FaceNormal)
             if (!facingOrientation.IsRightHandRuleCompliant(handOrientation, faceNormal))
             {
                 var newHandOrientation = facingOrientation.GenerateIndexFinger(faceNormal);
@@ -375,20 +375,20 @@ namespace RevitMCPCommandSet.Utils
         }
 
         /// <summary>
-        /// 获取距离点最近的面Reference
+        /// Haalt de Reference op van het vlak dat het dichtst bij het punt ligt
         /// </summary>
-        /// <param name="doc">当前文档</param>
-        /// <param name="location">目标点位置</param>
-        /// <param name="radius">搜索半径（内部单位）</param>
-        /// <returns>最近面的Reference，未找到返回null</returns>
+        /// <param name="doc">Huidig document</param>
+        /// <param name="location">Doelpuntlocatie</param>
+        /// <param name="radius">Zoekradius (interne eenheden)</param>
+        /// <returns>De Reference van het dichtstbijzijnde vlak, retourneert null indien niet gevonden</returns>
         public static Reference GetNearestFaceReference(this Document doc, XYZ location, double radius = 1000 / 304.8)
         {
             try
             {
-                // 误差处理
+                // Foutmarge verwerken
                 location = new XYZ(location.X, location.Y, location.Z + 0.1 / 304.8);
 
-                // 创建或获取3D视图
+                // Maak of haal een 3D-aanzicht op
                 View3D view3D = null;
                 FilteredElementCollector collector = new FilteredElementCollector(doc)
                     .OfClass(typeof(View3D));
@@ -422,53 +422,53 @@ namespace RevitMCPCommandSet.Utils
 
                 if (view3D == null)
                 {
-                    TaskDialog.Show("错误", "无法创建或获取3D视图");
+                    TaskDialog.Show("Fout", "Kan geen 3D-aanzicht maken of ophalen");
                     return null;
                 }
 
-                // 设置6个方向的射线
+                // Stel stralen in voor 6 richtingen
                 XYZ[] directions = new XYZ[]
                 {
-                  XYZ.BasisX,    // X正向
-                  -XYZ.BasisX,   // X负向
-                  XYZ.BasisY,    // Y正向
-                  -XYZ.BasisY,   // Y负向
-                  XYZ.BasisZ,    // Z正向
-                  -XYZ.BasisZ    // Z负向
+                  XYZ.BasisX,    // X-richting positief
+                  -XYZ.BasisX,   // X-richting negatief
+                  XYZ.BasisY,    // Y-richting positief
+                  -XYZ.BasisY,   // Y-richting negatief
+                  XYZ.BasisZ,    // Z-richting positief
+                  -XYZ.BasisZ    // Z-richting negatief
                 };
 
-                // 创建过滤器
+                // Maak filters
                 ElementClassFilter wallFilter = new ElementClassFilter(typeof(Wall));
                 ElementClassFilter floorFilter = new ElementClassFilter(typeof(Floor));
                 ElementClassFilter ceilingFilter = new ElementClassFilter(typeof(Ceiling));
                 ElementClassFilter instanceFilter = new ElementClassFilter(typeof(FamilyInstance));
 
-                // 组合过滤器
+                // Combineer filters
                 LogicalOrFilter categoryFilter = new LogicalOrFilter(
                     new ElementFilter[] { wallFilter, floorFilter, ceilingFilter, instanceFilter });
 
 
-                // 1. 最简单：所有实例化元素的过滤器
+                // 1. Eenvoudigste optie: filter voor alle geïnstantieerde elementen
                 //ElementFilter filter = new ElementIsElementTypeFilter(true);
 
-                // 创建射线追踪器
+                // Maak de ray-tracer
                 ReferenceIntersector refIntersector = new ReferenceIntersector(categoryFilter,
                     FindReferenceTarget.Face, view3D);
-                refIntersector.FindReferencesInRevitLinks = true; // 如果需要查找链接文件中的面
+                refIntersector.FindReferencesInRevitLinks = true; // Indien nodig ook vlakken in gekoppelde bestanden zoeken
 
                 double minDistance = double.MaxValue;
                 Reference nearestFace = null;
 
                 foreach (XYZ direction in directions)
                 {
-                    // 从当前位置发射射线
+                    // Zend een straal uit vanaf de huidige positie
                     IList<ReferenceWithContext> references = refIntersector.Find(location, direction);
 
                     foreach (ReferenceWithContext rwc in references)
                     {
-                        double distance = rwc.Proximity; // 获取到面的距离
+                        double distance = rwc.Proximity; // Haal de afstand tot het vlak op
 
-                        // 如果在搜索范围内且距离更近
+                        // Als het binnen het zoekbereik ligt en dichterbij is
                         if (distance <= radius && distance < minDistance)
                         {
                             minDistance = distance;
@@ -481,32 +481,32 @@ namespace RevitMCPCommandSet.Utils
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("错误", $"获取最近面时发生错误：{ex.Message}");
+                TaskDialog.Show("Fout", $"Er is een fout opgetreden bij het ophalen van het dichtstbijzijnde vlak: {ex.Message}");
                 return null;
             }
         }
 
         /// <summary>
-        /// 获取距离点最近的可作为宿主的元素
+        /// Haalt het dichtstbijzijnde element op dat als host kan dienen
         /// </summary>
-        /// <param name="doc">当前文档</param>
-        /// <param name="location">目标点位置</param>
-        /// <param name="familySymbol">族类型，用于判断宿主类型</param>
-        /// <param name="radius">搜索半径（内部单位）</param>
-        /// <returns>最近的宿主元素，未找到返回null</returns>
+        /// <param name="doc">Huidig document</param>
+        /// <param name="location">Doelpuntlocatie</param>
+        /// <param name="familySymbol">Familietype, gebruikt om het hosttype te bepalen</param>
+        /// <param name="radius">Zoekradius (interne eenheden)</param>
+        /// <returns>Het dichtstbijzijnde hostelement, retourneert null indien niet gevonden</returns>
         public static Element GetNearestHostElement(this Document doc, XYZ location, FamilySymbol familySymbol, double radius = 5.0)
         {
             try
             {
-                // 基本参数检查
+                // Basiscontrole van parameters
                 if (doc == null || location == null || familySymbol == null)
                     return null;
 
-                // 获取族的宿主行为参数
+                // Haal de hostgedragparameter van de familie op
                 Parameter hostParam = familySymbol.Family.get_Parameter(BuiltInParameter.FAMILY_HOSTING_BEHAVIOR);
                 int hostingBehavior = hostParam?.AsInteger() ?? 0;
 
-                // 创建或获取3D视图
+                // Maak of haal een 3D-aanzicht op
                 View3D view3D = null;
                 FilteredElementCollector viewCollector = new FilteredElementCollector(doc)
                     .OfClass(typeof(View3D));
@@ -539,11 +539,11 @@ namespace RevitMCPCommandSet.Utils
 
                 if (view3D == null)
                 {
-                    TaskDialog.Show("错误", "无法创建或获取3D视图");
+                    TaskDialog.Show("Fout", "Kan geen 3D-aanzicht maken of ophalen");
                     return null;
                 }
 
-                // 根据宿主行为创建类型过滤器
+                // Maak een typefilter op basis van het hostgedrag
                 ElementFilter classFilter;
                 switch (hostingBehavior)
                 {
@@ -560,38 +560,38 @@ namespace RevitMCPCommandSet.Utils
                         classFilter = new ElementClassFilter(typeof(RoofBase));
                         break;
                     default:
-                        return null; // 不支持的宿主类型
+                        return null; // Niet-ondersteund hosttype
                 }
 
-                // 设置6个方向的射线
+                // Stel stralen in voor 6 richtingen
                 XYZ[] directions = new XYZ[]
                 {
-                    XYZ.BasisX,    // X正向
-                    -XYZ.BasisX,   // X负向
-                    XYZ.BasisY,    // Y正向
-                    -XYZ.BasisY,   // Y负向
-                    XYZ.BasisZ,    // Z正向
-                    -XYZ.BasisZ    // Z负向
+                    XYZ.BasisX,    // X-richting positief
+                    -XYZ.BasisX,   // X-richting negatief
+                    XYZ.BasisY,    // Y-richting positief
+                    -XYZ.BasisY,   // Y-richting negatief
+                    XYZ.BasisZ,    // Z-richting positief
+                    -XYZ.BasisZ    // Z-richting negatief
                 };
 
-                // 创建射线追踪器
+                // Maak de ray-tracer
                 ReferenceIntersector refIntersector = new ReferenceIntersector(classFilter,
                     FindReferenceTarget.Element, view3D);
-                refIntersector.FindReferencesInRevitLinks = true; // 如果需要查找链接文件中的元素
+                refIntersector.FindReferencesInRevitLinks = true; // Indien nodig ook elementen in gekoppelde bestanden zoeken
 
                 double minDistance = double.MaxValue;
                 Element nearestHost = null;
 
                 foreach (XYZ direction in directions)
                 {
-                    // 从当前位置发射射线
+                    // Zend een straal uit vanaf de huidige positie
                     IList<ReferenceWithContext> references = refIntersector.Find(location, direction);
 
                     foreach (ReferenceWithContext rwc in references)
                     {
-                        double distance = rwc.Proximity; // 获取到元素的距离
+                        double distance = rwc.Proximity; // Haal de afstand tot het element op
 
-                        // 如果在搜索范围内且距离更近
+                        // Als het binnen het zoekbereik ligt en dichterbij is
                         if (distance <= radius && distance < minDistance)
                         {
                             minDistance = distance;
@@ -604,7 +604,7 @@ namespace RevitMCPCommandSet.Utils
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("错误", $"获取最近宿主元素时发生错误：{ex.Message}");
+                TaskDialog.Show("Fout", $"Er is een fout opgetreden bij het ophalen van het dichtstbijzijnde hostelement: {ex.Message}");
                 return null;
             }
         }
@@ -681,16 +681,16 @@ namespace RevitMCPCommandSet.Utils
         }
 
         /// <summary>
-        /// 高亮显示指定的面
+        /// Markeert het opgegeven vlak visueel
         /// </summary>
-        /// <param name="doc">当前文档</param>
-        /// <param name="faceRef">要高亮显示的面Reference</param>
-        /// <param name="duration">高亮持续时间(毫秒)，默认3000毫秒</param>
+        /// <param name="doc">Huidig document</param>
+        /// <param name="faceRef">De Reference van het vlak dat gemarkeerd moet worden</param>
+        /// <param name="duration">Duur van de markering (milliseconden), standaard 3000 milliseconden</param>
         public static void HighlightFace(this Document doc, Reference faceRef)
         {
             if (faceRef == null) return;
 
-            // 获取实心填充图案
+            // Haal het patroon voor volledige vulling op
             FillPatternElement solidFill = new FilteredElementCollector(doc)
                 .OfClass(typeof(FillPatternElement))
                 .Cast<FillPatternElement>()
@@ -698,48 +698,48 @@ namespace RevitMCPCommandSet.Utils
 
             if (solidFill == null)
             {
-                TaskDialog.Show("错误", "未找到实心填充图案");
+                TaskDialog.Show("Fout", "Geen patroon voor volledige vulling gevonden");
                 return;
             }
 
-            // 创建高亮显示设置
+            // Maak de instellingen voor de markering
             OverrideGraphicSettings ogs = new OverrideGraphicSettings();
-            ogs.SetSurfaceForegroundPatternColor(new Color(255, 0, 0)); // 红色
+            ogs.SetSurfaceForegroundPatternColor(new Color(255, 0, 0)); // Rood
             ogs.SetSurfaceForegroundPatternId(solidFill.Id);
-            ogs.SetSurfaceTransparency(0); // 不透明
+            ogs.SetSurfaceTransparency(0); // Ondoorzichtig
 
-            // 高亮显示
+            // Markeer weergeven
             doc.ActiveView.SetElementOverrides(faceRef.ElementId, ogs);
         }
 
         /// <summary>
-        /// 提取面的两个主要方向向量
+        /// Haalt de twee belangrijkste richtingsvectoren van een vlak op
         /// </summary>
-        /// <param name="face">输入面</param>
-        /// <returns>包含主方向和次方向的元组</returns>
-        /// <exception cref="ArgumentNullException">当面为空时抛出</exception>
-        /// <exception cref="ArgumentException">当面的轮廓不足以形成有效形状时抛出</exception>
-        /// <exception cref="InvalidOperationException">当无法提取有效方向时抛出</exception>
+        /// <param name="face">Invoervlak</param>
+        /// <returns>Tuple met de primaire en secundaire richting</returns>
+        /// <exception cref="ArgumentNullException">Wordt gegooid wanneer het vlak leeg is</exception>
+        /// <exception cref="ArgumentException">Wordt gegooid wanneer het contour van het vlak onvoldoende is om een geldige vorm te vormen</exception>
+        /// <exception cref="InvalidOperationException">Wordt gegooid wanneer er geen geldige richting kan worden bepaald</exception>
         public static (XYZ PrimaryDirection, XYZ SecondaryDirection) GetMainDirections(this Face face)
         {
-            // 1. 参数验证
+            // 1. Parametervalidatie
             if (face == null)
-                throw new ArgumentNullException(nameof(face), "面不能为空");
+                throw new ArgumentNullException(nameof(face), "Het vlak mag niet leeg zijn");
 
-            // 2. 获取面的法向量，用于后续可能需要的垂直向量计算
+            // 2. Haal de normaalvector van het vlak op, nodig voor eventuele loodrechte-vectorberekeningen
             XYZ faceNormal = face.ComputeNormal(new UV(0.5, 0.5));
 
-            // 3. 获取面的外轮廓
+            // 3. Haal de buitencontour van het vlak op
             EdgeArrayArray edgeLoops = face.EdgeLoops;
             if (edgeLoops.Size == 0)
-                throw new ArgumentException("面没有有效的边循环", nameof(face));
+                throw new ArgumentException("Het vlak heeft geen geldige randlussen", nameof(face));
 
-            // 通常第一个循环是外轮廓
+            // Meestal is de eerste lus de buitencontour
             EdgeArray outerLoop = edgeLoops.get_Item(0);
 
-            // 4. 计算每条边的方向向量和长度
-            List<XYZ> edgeDirections = new List<XYZ>();  // 存储每条边的单位向量方向
-            List<double> edgeLengths = new List<double>(); // 存储每条边的长度
+            // 4. Bereken de richtingsvector en lengte van elke rand
+            List<XYZ> edgeDirections = new List<XYZ>();  // Slaat de eenheidsvectorrichting van elke rand op
+            List<double> edgeLengths = new List<double>(); // Slaat de lengte van elke rand op
 
             foreach (Edge edge in outerLoop)
             {
@@ -747,49 +747,49 @@ namespace RevitMCPCommandSet.Utils
                 XYZ startPoint = curve.GetEndPoint(0);
                 XYZ endPoint = curve.GetEndPoint(1);
 
-                // 计算从起点到终点的向量
+                // Bereken de vector van startpunt naar eindpunt
                 XYZ direction = endPoint - startPoint;
                 double length = direction.GetLength();
 
-                // 忽略太短的边（可能是由于顶点重合或数值精度问题）
+                // Negeer randen die te kort zijn (mogelijk door samenvallende hoekpunten of afrondingsfouten)
                 if (length > 1e-10)
                 {
-                    edgeDirections.Add(direction.Normalize());  // 存储归一化后的方向向量
-                    edgeLengths.Add(length);                    // 存储边长
+                    edgeDirections.Add(direction.Normalize());  // Slaat de genormaliseerde richtingsvector op
+                    edgeLengths.Add(length);                    // Slaat de randlengte op
                 }
             }
 
-            if (edgeDirections.Count < 4) // 确保至少有4条边
+            if (edgeDirections.Count < 4) // Zorg ervoor dat er minstens 4 randen zijn
             {
-                throw new ArgumentException("提供的面没有足够的边来形成有效的形状", nameof(face));
+                throw new ArgumentException("Het opgegeven vlak heeft niet genoeg randen om een geldige vorm te vormen", nameof(face));
             }
 
-            // 5. 将相似方向的边分组
-            List<List<int>> directionGroups = new List<List<int>>();  // 存储方向组，每组包含边的索引
+            // 5. Groepeer randen met vergelijkbare richtingen
+            List<List<int>> directionGroups = new List<List<int>>();  // Slaat richtingsgroepen op, elke groep bevat de indexen van randen
 
             for (int i = 0; i < edgeDirections.Count; i++)
             {
                 bool foundGroup = false;
                 XYZ currentDirection = edgeDirections[i];
 
-                // 尝试将当前边加入已有的方向组
+                // Probeer de huidige rand toe te voegen aan een bestaande richtingsgroep
                 for (int j = 0; j < directionGroups.Count; j++)
                 {
                     var group = directionGroups[j];
-                    // 计算当前组的加权平均方向
+                    // Bereken de gewogen gemiddelde richting van de huidige groep
                     XYZ groupAvgDir = CalculateWeightedAverageDirection(group, edgeDirections, edgeLengths);
 
-                    // 检查当前方向是否与组的平均方向相似（包括正反方向）
+                    // Controleer of de huidige richting overeenkomt met de gemiddelde richting van de groep (inclusief tegengestelde richting)
                     double dotProduct = Math.Abs(groupAvgDir.DotProduct(currentDirection));
-                    if (dotProduct > 0.8) // 约30度内的偏差视为相似方向
+                    if (dotProduct > 0.8) // Een afwijking binnen ongeveer 30 graden wordt als vergelijkbare richting beschouwd
                     {
-                        group.Add(i);  // 将当前边的索引添加到该方向组
+                        group.Add(i);  // Voeg de index van de huidige rand toe aan deze richtingsgroep
                         foundGroup = true;
                         break;
                     }
                 }
 
-                // 如果当前边与所有已有组都不相似，创建新组
+                // Maak een nieuwe groep als de huidige rand niet overeenkomt met een bestaande groep
                 if (!foundGroup)
                 {
                     List<int> newGroup = new List<int> { i };
@@ -797,13 +797,13 @@ namespace RevitMCPCommandSet.Utils
                 }
             }
 
-            // 6. 计算每个方向组的总权重（边长和）和平均方向
+            // 6. Bereken het totale gewicht (som van randlengtes) en de gemiddelde richting van elke richtingsgroep
             List<double> groupWeights = new List<double>();
             List<XYZ> groupDirections = new List<XYZ>();
 
             foreach (var group in directionGroups)
             {
-                // 计算该组所有边的长度总和
+                // Bereken de som van de lengtes van alle randen in deze groep
                 double totalLength = 0;
                 foreach (int edgeIndex in group)
                 {
@@ -811,100 +811,100 @@ namespace RevitMCPCommandSet.Utils
                 }
                 groupWeights.Add(totalLength);
 
-                // 计算该组的加权平均方向
+                // Bereken de gewogen gemiddelde richting van deze groep
                 groupDirections.Add(CalculateWeightedAverageDirection(group, edgeDirections, edgeLengths));
             }
 
-            // 7. 按照权重排序，提取主要方向
+            // 7. Sorteer op gewicht om de belangrijkste richting te bepalen
             int[] sortedIndices = Enumerable.Range(0, groupDirections.Count)
                 .OrderByDescending(i => groupWeights[i])
                 .ToArray();
 
-            // 8. 构造结果
+            // 8. Stel het resultaat samen
             if (groupDirections.Count >= 2)
             {
-                // 有至少两个方向组，取权重最大的两组作为主方向和次方向
+                // Er zijn minstens twee richtingsgroepen; neem de twee zwaarste als primaire en secundaire richting
                 int primaryIndex = sortedIndices[0];
                 int secondaryIndex = sortedIndices[1];
 
                 return (
-                    PrimaryDirection: groupDirections[primaryIndex],      // 主方向
-                    SecondaryDirection: groupDirections[secondaryIndex]   // 次方向
+                    PrimaryDirection: groupDirections[primaryIndex],      // Primaire richting
+                    SecondaryDirection: groupDirections[secondaryIndex]   // Secundaire richting
                 );
             }
             else if (groupDirections.Count == 1)
             {
-                // 只有一个方向组，手动创建与主方向垂直的次方向
+                // Er is maar één richtingsgroep; construeer handmatig een secundaire richting loodrecht op de primaire richting
                 XYZ primaryDirection = groupDirections[0];
-                // 使用面法向量和主方向的叉积创建垂直向量
+                // Gebruik het kruisproduct van de vlaknormaal en de primaire richting om een loodrechte vector te maken
                 XYZ secondaryDirection = faceNormal.CrossProduct(primaryDirection).Normalize();
 
                 return (
-                    PrimaryDirection: primaryDirection,         // 主方向 
-                    SecondaryDirection: secondaryDirection      // 人工构造的垂直次方向
+                    PrimaryDirection: primaryDirection,         // Primaire richting
+                    SecondaryDirection: secondaryDirection      // Kunstmatig geconstrueerde loodrechte secundaire richting
                 );
             }
             else
             {
-                // 无法提取有效的方向（极少发生）
-                throw new InvalidOperationException("无法从面中提取有效的方向");
+                // Kan geen geldige richting bepalen (komt zelden voor)
+                throw new InvalidOperationException("Kan geen geldige richting uit het vlak bepalen");
             }
         }
 
         /// <summary>
-        /// 根据边长计算一组边的加权平均方向
+        /// Berekent de gewogen gemiddelde richting van een groep randen op basis van hun lengte
         /// </summary>
-        /// <param name="edgeIndices">边的索引列表</param>
-        /// <param name="directions">所有边的方向向量</param>
-        /// <param name="lengths">所有边的长度</param>
-        /// <returns>归一化的加权平均方向向量</returns>
+        /// <param name="edgeIndices">Lijst met randindexen</param>
+        /// <param name="directions">Richtingsvectoren van alle randen</param>
+        /// <param name="lengths">Lengtes van alle randen</param>
+        /// <returns>Genormaliseerde gewogen gemiddelde richtingsvector</returns>
         public static XYZ CalculateWeightedAverageDirection(List<int> edgeIndices, List<XYZ> directions, List<double> lengths)
         {
             if (edgeIndices.Count == 0)
                 return null;
 
             double sumX = 0, sumY = 0, sumZ = 0;
-            XYZ referenceDir = directions[edgeIndices[0]];  // 使用组内第一个方向作为参考
+            XYZ referenceDir = directions[edgeIndices[0]];  // Gebruik de eerste richting in de groep als referentie
 
             foreach (int i in edgeIndices)
             {
                 XYZ currentDir = directions[i];
 
-                // 计算当前方向与参考方向的点积，判断是否需要反转
+                // Bereken het puntproduct van de huidige richting met de referentierichting om te bepalen of omkering nodig is
                 double dot = referenceDir.DotProduct(currentDir);
 
-                // 如果方向相反（点积为负），反转该向量再计算贡献
-                // 这确保同一组内的向量指向一致，避免相互抵消
+                // Als de richting tegengesteld is (negatief puntproduct), keer de vector om voordat de bijdrage wordt berekend
+                // Dit zorgt ervoor dat vectoren binnen dezelfde groep consistent wijzen en elkaar niet opheffen
                 double factor = (dot >= 0) ? lengths[i] : -lengths[i];
 
-                // 累加向量分量（带权重）
+                // Tel de vectorcomponenten op (gewogen)
                 sumX += currentDir.X * factor;
                 sumY += currentDir.Y * factor;
                 sumZ += currentDir.Z * factor;
             }
 
-            // 创建合成向量并归一化
+            // Maak de samengestelde vector en normaliseer deze
             XYZ avgDir = new XYZ(sumX, sumY, sumZ);
             double magnitude = avgDir.GetLength();
 
-            // 防止零向量
+            // Voorkom een nulvector
             if (magnitude < 1e-10)
-                return referenceDir;  // 回退至参考方向
+                return referenceDir;  // Val terug op de referentierichting
 
-            return avgDir.Normalize();  // 返回归一化后的方向向量
+            return avgDir.Normalize();  // Retourneer de genormaliseerde richtingsvector
         }
 
         /// <summary>
-        /// 判断三个向量是否同时符合右手定则且互相严格垂直
+        /// Bepaalt of drie vectoren zowel voldoen aan de rechterhandregel als strikt loodrecht op elkaar staan
         /// </summary>
-        /// <param name="thumb">拇指方向向量</param>
-        /// <param name="indexFinger">食指方向向量</param>
-        /// <param name="middleFinger">中指方向向量</param>
-        /// <param name="tolerance">判断的容差，默认为1e-6</param>
-        /// <returns>如果三个向量符合右手定则且互相垂直则返回true，否则返回false</returns>
+        /// <param name="thumb">Richtingsvector van de duim</param>
+        /// <param name="indexFinger">Richtingsvector van de wijsvinger</param>
+        /// <param name="middleFinger">Richtingsvector van de middelvinger</param>
+        /// <param name="tolerance">Tolerantie voor de beoordeling, standaard 1e-6</param>
+        /// <returns>True als de drie vectoren voldoen aan de rechterhandregel en loodrecht op elkaar staan, anders false</returns>
         public static bool IsRightHandRuleCompliant(this XYZ thumb, XYZ indexFinger, XYZ middleFinger, double tolerance = 1e-6)
         {
-            // 检查三个向量是否互相垂直（所有点积都接近0）
+            // Controleer of de drie vectoren loodrecht op elkaar staan (alle puntproducten liggen dicht bij 0)
             double dotThumbIndex = Math.Abs(thumb.DotProduct(indexFinger));
             double dotThumbMiddle = Math.Abs(thumb.DotProduct(middleFinger));
             double dotIndexMiddle = Math.Abs(indexFinger.DotProduct(middleFinger));
@@ -913,57 +913,57 @@ namespace RevitMCPCommandSet.Utils
                                   (dotThumbMiddle <= tolerance) &&
                                   (dotIndexMiddle <= tolerance);
 
-            // 只有在三个向量互相垂直的情况下才检查右手定则
+            // Controleer de rechterhandregel alleen als de drie vectoren loodrecht op elkaar staan
             if (!areOrthogonal)
                 return false;
 
-            // 计算叉积向量与拇指的点积，判断是否符合右手定则
+            // Bereken het puntproduct van de kruisproductvector met de duim om te bepalen of dit voldoet aan de rechterhandregel
             XYZ crossProduct = indexFinger.CrossProduct(middleFinger);
             double rightHandTest = crossProduct.DotProduct(thumb);
 
-            // 点积为正值表示符合右手定则
+            // Een positief puntproduct betekent dat aan de rechterhandregel wordt voldaan
             return rightHandTest > tolerance;
         }
 
         /// <summary>
-        /// 根据拇指和中指方向生成符合右手定则的食指方向
+        /// Genereert de wijsvingerrichting die voldoet aan de rechterhandregel op basis van de duim- en middelvingerrichting
         /// </summary>
-        /// <param name="thumb">拇指方向向量</param>
-        /// <param name="middleFinger">中指方向向量</param>
-        /// <param name="tolerance">垂直判断的容差，默认为1e-6</param>
-        /// <returns>生成的食指方向向量，如果输入向量不垂直则返回null</returns>
+        /// <param name="thumb">Richtingsvector van de duim</param>
+        /// <param name="middleFinger">Richtingsvector van de middelvinger</param>
+        /// <param name="tolerance">Tolerantie voor de loodrechtheidscontrole, standaard 1e-6</param>
+        /// <returns>De gegenereerde richtingsvector van de wijsvinger, retourneert null als de invoervectoren niet loodrecht zijn</returns>
         public static XYZ GenerateIndexFinger(this XYZ thumb, XYZ middleFinger, double tolerance = 1e-6)
         {
-            // 首先归一化输入向量
+            // Normaliseer eerst de invoervectoren
             XYZ normalizedThumb = thumb.Normalize();
             XYZ normalizedMiddleFinger = middleFinger.Normalize();
 
-            // 检查两个向量是否垂直（点积接近于0）
+            // Controleer of de twee vectoren loodrecht op elkaar staan (puntproduct dicht bij 0)
             double dotProduct = normalizedThumb.DotProduct(normalizedMiddleFinger);
 
-            // 如果点积的绝对值大于容差，则向量不垂直
+            // Als de absolute waarde van het puntproduct groter is dan de tolerantie, staan de vectoren niet loodrecht
             if (Math.Abs(dotProduct) > tolerance)
             {
                 return null;
             }
 
-            // 通过叉积计算食指方向并取反
+            // Bereken de wijsvingerrichting via het kruisproduct en keer deze om
             XYZ indexFinger = normalizedMiddleFinger.CrossProduct(normalizedThumb).Negate();
 
-            // 返回归一化后的食指方向向量
+            // Retourneer de genormaliseerde richtingsvector van de wijsvinger
             return indexFinger.Normalize();
         }
 
         /// <summary>
-        /// 创建或获取指定高度的标高
+        /// Maakt of haalt een peil op met de opgegeven hoogte
         /// </summary>
-        /// <param name="doc">revit文档</param>
-        /// <param name="elevation">标高高度（ft）</param>
-        /// <param name="levelName">标高名称</param>
+        /// <param name="doc">Revit-document</param>
+        /// <param name="elevation">Hoogte van het peil (ft)</param>
+        /// <param name="levelName">Naam van het peil</param>
         /// <returns></returns>
         public static Level CreateOrGetLevel(this Document doc, double elevation, string levelName)
         {
-            // 先查找是否存在指定高度的标高
+            // Controleer eerst of er al een peil met de opgegeven hoogte bestaat
             Level existingLevel = new FilteredElementCollector(doc)
                 .OfClass(typeof(Level))
                 .Cast<Level>()
@@ -972,9 +972,9 @@ namespace RevitMCPCommandSet.Utils
             if (existingLevel != null)
                 return existingLevel;
 
-            // 创建新标高
+            // Maak een nieuw peil
             Level newLevel = Level.Create(doc, elevation);
-            // 设置标高名称
+            // Stel de naam van het peil in
             Level namesakeLevel = new FilteredElementCollector(doc)
                  .OfClass(typeof(Level))
                  .Cast<Level>()
@@ -989,17 +989,17 @@ namespace RevitMCPCommandSet.Utils
         }
 
         /// <summary>
-        /// 查找距离给定高度最近的标高
+        /// Zoekt het peil dat het dichtst bij de opgegeven hoogte ligt
         /// </summary>
-        /// <param name="doc">当前Revit文档</param>
-        /// <param name="height">目标高度（Revit内部单位）</param>
-        /// <returns>距离目标高度最近的标高，若文档中没有标高则返回null</returns>
+        /// <param name="doc">Huidig Revit-document</param>
+        /// <param name="height">Doelhoogte (Revit-interne eenheden)</param>
+        /// <returns>Het peil dat het dichtst bij de doelhoogte ligt, of null als het document geen peilen bevat</returns>
         public static Level FindNearestLevel(this Document doc, double height)
         {
             if (doc == null)
-                throw new ArgumentNullException(nameof(doc), "文档不能为空");
+                throw new ArgumentNullException(nameof(doc), "Het document mag niet leeg zijn");
 
-            // 直接使用LINQ查询获取距离最近的标高
+            // Gebruik direct een LINQ-query om het dichtstbijzijnde peil op te halen
             return new FilteredElementCollector(doc)
                 .OfClass(typeof(Level))
                 .Cast<Level>()
@@ -1008,29 +1008,29 @@ namespace RevitMCPCommandSet.Utils
         }
 
         ///// <summary>
-        ///// 刷新视图并添加延迟
+        ///// Vernieuwt het aanzicht en voegt een vertraging toe
         ///// </summary>
         //public static void Refresh(this Document doc, int waitingTime = 0, bool allowOperation = true)
         //{
         //    UIApplication uiApp = new UIApplication(doc.Application);
         //    UIDocument uiDoc = uiApp.ActiveUIDocument;
 
-        //    // 检查文档是否可修改
+        //    // Controleer of het document kan worden gewijzigd
         //    if (uiDoc.Document.IsModifiable)
         //    {
-        //        // 更新模型
+        //        // Werk het model bij
         //        uiDoc.Document.Regenerate();
         //    }
-        //    // 更新界面
+        //    // Werk de interface bij
         //    uiDoc.RefreshActiveView();
 
-        //    // 延迟等待
+        //    // Wacht vertraging
         //    if (waitingTime != 0)
         //    {
         //        System.Threading.Thread.Sleep(waitingTime);
         //    }
 
-        //    // 允许用户进行非安全操作
+        //    // Sta de gebruiker toe niet-veilige handelingen uit te voeren
         //    if (allowOperation)
         //    {
         //        System.Windows.Forms.Application.DoEvents();
@@ -1038,25 +1038,25 @@ namespace RevitMCPCommandSet.Utils
         //}
 
         /// <summary>
-        /// 将指定的消息保存到桌面的指定文件中（默认覆盖文件）
+        /// Slaat het opgegeven bericht op in het opgegeven bestand op het bureaublad (standaard wordt het bestand overschreven)
         /// </summary>
-        /// <param name="message">要保存的消息内容</param>
-        /// <param name="fileName">目标文件名</param>
+        /// <param name="message">Inhoud van het op te slaan bericht</param>
+        /// <param name="fileName">Doelbestandsnaam</param>
         public static void SaveToDesktop(this string message, string fileName = "temp.json", bool isAppend = false)
         {
-            // 确保 logName 包含后缀
+            // Zorg ervoor dat logName een extensie bevat
             if (!Path.HasExtension(fileName))
             {
-                fileName += ".txt"; // 默认添加 .txt 后缀
+                fileName += ".txt"; // Standaard wordt de extensie .txt toegevoegd
             }
 
-            // 获取桌面路径
+            // Haal het pad naar het bureaublad op
             string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
 
-            // 组合完整的文件路径
+            // Stel het volledige bestandspad samen
             string filePath = Path.Combine(desktopPath, fileName);
 
-            // 写入文件（覆盖模式）
+            // Schrijf naar het bestand (overschrijfmodus)
             using (StreamWriter sw = new StreamWriter(filePath, isAppend))
             {
                 sw.WriteLine($"{message}");

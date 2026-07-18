@@ -10,26 +10,26 @@ using RevitMCPSDK.API.Interfaces;
 namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
 {
     /// <summary>
-    /// 处理代码执行的外部事件处理器
+    /// Externe event handler die de uitvoering van code afhandelt
     /// </summary>
     public class ExecuteCodeEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
     {
         public const string TransactionModeAuto = "auto";
         public const string TransactionModeNone = "none";
 
-        // 代码执行参数
+        // Code-uitvoeringsparameters
         private string _generatedCode;
         private object[] _executionParameters;
         private string _transactionMode = TransactionModeAuto;
 
-        // 执行结果信息
+        // Informatie over het uitvoeringsresultaat
         public ExecutionResultInfo ResultInfo { get; private set; }
 
-        // 状态同步对象
+        // Object voor statussynchronisatie
         public bool TaskCompleted { get; private set; }
         private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
-        // 设置要执行的代码和参数
+        // Stel de uit te voeren code en parameters in
         public void SetExecutionParameters(string code, object[] parameters = null, string transactionMode = TransactionModeAuto)
         {
             _generatedCode = code;
@@ -39,7 +39,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
             _resetEvent.Reset();
         }
 
-        // 等待执行完成 - IWaitableExternalEventHandler接口实现
+        // Wachten op voltooiing van de uitvoering - implementatie van de IWaitableExternalEventHandler-interface
         public bool WaitForCompletion(int timeoutMilliseconds = 10000)
         {
             _resetEvent.Reset();
@@ -64,7 +64,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
                 }
                 else
                 {
-                    using (var transaction = new Transaction(doc, "执行AI代码"))
+                    using (var transaction = new Transaction(doc, "AI-code uitvoeren"))
                     {
                         transaction.Start();
 
@@ -84,7 +84,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
             catch (Exception ex)
             {
                 ResultInfo.Success = false;
-                ResultInfo.ErrorMessage = $"执行失败: {ex.Message}";
+                ResultInfo.ErrorMessage = $"Uitvoering mislukt: {ex.Message}";
             }
             finally
             {
@@ -95,7 +95,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
 
         private object CompileAndExecuteCode(string code, Document doc, object[] parameters)
         {
-            // 包装代码以规范入口点
+            // Code verpakken om het entrypoint te standaardiseren
             var wrappedCode = $@"
 using System;
 using System.Linq;
@@ -109,7 +109,7 @@ namespace AIGeneratedCode
     {{
         public static object Execute(Document document, object[] parameters)
         {{
-            // 用户代码入口
+            // Entrypoint voor gebruikerscode
             {code}
         }}
     }}
@@ -117,14 +117,14 @@ namespace AIGeneratedCode
 
             var syntaxTree = CSharpSyntaxTree.ParseText(wrappedCode);
 
-            // 添加必要的程序集引用（引用所有已加载的程序集）
+            // Voeg de benodigde assembly-verwijzingen toe (verwijs naar alle geladen assembly's)
             var references = AppDomain.CurrentDomain.GetAssemblies()
                 .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
                 .Select(a => MetadataReference.CreateFromFile(a.Location))
                 .Cast<MetadataReference>()
                 .ToList();
 
-            // 编译代码
+            // Code compileren
             var compilation = CSharpCompilation.Create(
                 "AIGeneratedCode",
                 syntaxTrees: new[] { syntaxTree },
@@ -136,16 +136,16 @@ namespace AIGeneratedCode
             {
                 var result = compilation.Emit(ms);
 
-                // 处理编译结果
+                // Compilatieresultaat verwerken
                 if (!result.Success)
                 {
                     var errors = string.Join("\n", result.Diagnostics
                         .Where(d => d.Severity == DiagnosticSeverity.Error)
                         .Select(d => $"Line {d.Location.GetLineSpan().StartLinePosition.Line}: {d.GetMessage()}"));
-                    throw new Exception($"代码编译错误:\n{errors}");
+                    throw new Exception($"Compilatiefout in code:\n{errors}");
                 }
 
-                // 反射调用执行方法
+                // Uitvoeringsmethode aanroepen via reflectie
                 ms.Seek(0, SeekOrigin.Begin);
                 var assembly = Assembly.Load(ms.ToArray());
                 var executorType = assembly.GetType("AIGeneratedCode.CodeExecutor");
@@ -157,11 +157,11 @@ namespace AIGeneratedCode
 
         public string GetName()
         {
-            return "执行AI代码";
+            return "AI-code uitvoeren";
         }
     }
 
-    // 执行结果数据结构
+    // Gegevensstructuur voor het uitvoeringsresultaat
     public class ExecutionResultInfo
     {
         [JsonProperty("success")]

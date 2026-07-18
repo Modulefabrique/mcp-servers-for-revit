@@ -5,9 +5,9 @@ import { RevitClientConnection } from "./SocketClient.js";
 let connectionMutex: Promise<void> = Promise.resolve();
 
 /**
- * 连接到Revit客户端并执行操作
- * @param operation 连接成功后要执行的操作函数
- * @returns 操作的结果
+ * Maakt verbinding met de Revit-client en voert een operatie uit
+ * @param operation De functie die moet worden uitgevoerd na een succesvolle verbinding
+ * @returns Het resultaat van de operatie
  */
 export async function withRevitConnection<T>(
   operation: (client: RevitClientConnection) => Promise<T>
@@ -23,7 +23,7 @@ export async function withRevitConnection<T>(
   const revitClient = new RevitClientConnection("localhost", 8080);
 
   try {
-    // 连接到Revit客户端
+    // Verbinding maken met de Revit-client
     if (!revitClient.isConnected) {
       await new Promise<void>((resolve, reject) => {
         const onConnect = () => {
@@ -46,15 +46,15 @@ export async function withRevitConnection<T>(
         setTimeout(() => {
           revitClient.socket.removeListener("connect", onConnect);
           revitClient.socket.removeListener("error", onError);
-          reject(new Error("连接到Revit客户端失败"));
+          reject(new Error("Verbinding met Revit-client mislukt"));
         }, 5000);
       });
     }
 
-    // 执行操作
+    // Operatie uitvoeren
     return await operation(revitClient);
   } finally {
-    // 断开连接
+    // Verbinding verbreken
     revitClient.disconnect();
     // Release the mutex so the next request can proceed
     releaseMutex!();

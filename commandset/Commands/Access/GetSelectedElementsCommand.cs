@@ -29,25 +29,25 @@ namespace RevitMCPCommandSet.Commands.Access
             {
                 try
                 {
-                    // 解析参数
+                    // Parameters parsen
                     int? limit = parameters?["limit"]?.Value<int>();
 
-                    // 设置数量限制
+                    // Stel het maximumaantal in
                     _handler.Limit = limit;
 
-                    // 触发外部事件并等待完成
+                    // Extern event activeren en wachten op voltooiing
                     if (RaiseAndWaitForCompletion(15000))
                     {
                         return _handler.ResultElements;
                     }
                     else
                     {
-                        throw new TimeoutException("获取选中元素超时");
+                        throw new TimeoutException("Time-out bij ophalen van geselecteerde elementen");
                     }
                 }
                 catch (Exception ex)
                 {
-                    throw new Exception($"获取选中元素失败: {ex.Message}");
+                    throw new Exception($"Ophalen van geselecteerde elementen mislukt: {ex.Message}");
                 }
             }
         }

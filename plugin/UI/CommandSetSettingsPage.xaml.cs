@@ -66,7 +66,7 @@ namespace revit_mcp_plugin.UI
                                 Commands = new List<CommandConfig>()
                             };
 
-                            // 检测支持的Revit版本 - 从年份子文件夹确定
+                            // Detecteer ondersteunde Revit-versies - bepaald aan de hand van jaartal-submappen
                             List<string> supportedVersions = new List<string>();
                             var versionDirectories = Directory.GetDirectories(directory)
                                 .Select(Path.GetFileName)
@@ -76,7 +76,7 @@ namespace revit_mcp_plugin.UI
                             // Loop through each command
                             foreach (var command in commandSetData.Commands)
                             {
-                                // 创建一个命令配置，但通过检查文件夹确定支持的版本
+                                // Maak een commandoconfiguratie aan, waarbij de ondersteunde versies worden bepaald door de mappen te controleren
                                 List<string> supportedCommandVersions = new List<string>();
                                 string dllBasePath = null;
 
@@ -87,14 +87,14 @@ namespace revit_mcp_plugin.UI
 
                                     if (!string.IsNullOrEmpty(command.AssemblyPath))
                                     {
-                                        // 如果指定了相对路径，在版本子文件夹中查找
+                                        // Als een relatief pad is opgegeven, zoek dan in de versie-submap
                                         versionDllPath = Path.Combine(versionDirectory, command.AssemblyPath);
                                         if (File.Exists(versionDllPath))
                                         {
-                                            // 记录基本路径模板
+                                            // Sla het basis-padsjabloon op
                                             if (dllBasePath == null)
                                             {
-                                                // 提取相对路径，用于创建模板
+                                                // Haal het relatieve pad op om een sjabloon te maken
                                                 dllBasePath = Path.Combine(commandSetData.Name, "{VERSION}", command.AssemblyPath);
                                             }
                                             supportedCommandVersions.Add(version);
@@ -102,14 +102,14 @@ namespace revit_mcp_plugin.UI
                                     }
                                     else
                                     {
-                                        // 如果没有指定路径，在版本子文件夹中查找任意DLL
+                                        // Als er geen pad is opgegeven, zoek dan naar een willekeurige DLL in de versie-submap
                                         var dllFiles = Directory.GetFiles(versionDirectory, "*.dll");
                                         if (dllFiles.Length > 0)
                                         {
-                                            versionDllPath = dllFiles[0]; // 使用找到的第一个DLL
+                                            versionDllPath = dllFiles[0]; // Gebruik de eerste gevonden DLL
                                             if (dllBasePath == null)
                                             {
-                                                // 提取DLL文件名
+                                                // Haal de DLL-bestandsnaam op
                                                 string dllFileName = Path.GetFileName(versionDllPath);
                                                 dllBasePath = Path.Combine(commandSetData.Name, "{VERSION}", dllFileName);
                                             }
@@ -118,28 +118,28 @@ namespace revit_mcp_plugin.UI
                                     }
                                 }
 
-                                // 如果至少有一个版本支持此命令
+                                // Als ten minste één versie dit commando ondersteunt
                                 if (supportedCommandVersions.Count > 0 && dllBasePath != null)
                                 {
-                                    // 创建命令配置
+                                    // Maak de commandoconfiguratie aan
                                     var commandConfig = new CommandConfig
                                     {
                                         CommandName = command.CommandName,
                                         Description = command.Description,
-                                        // 使用带有版本占位符的路径
+                                        // Gebruik het pad met de versie-plaatshouder
                                         AssemblyPath = dllBasePath,
                                         Enabled = false,
-                                        // 记录所有支持的版本
+                                        // Sla alle ondersteunde versies op
                                         SupportedRevitVersions = supportedCommandVersions.ToArray()
                                     };
 
-                                    // 添加到命令列表
+                                    // Voeg toe aan de commandolijst
                                     newCommandSet.Commands.Add(commandConfig);
                                     availableCommandNames.Add(command.CommandName);
                                 }
                             }
 
-                            // 如果有可用命令，添加到命令集列表
+                            // Als er beschikbare commando's zijn, voeg toe aan de lijst met commandosets
                             if (newCommandSet.Commands.Any())
                             {
                                 availableCommandSets[commandSetData.Name] = newCommandSet;
@@ -269,7 +269,7 @@ namespace revit_mcp_plugin.UI
             try
             {
                 string registryFilePath = PathManager.GetCommandRegistryFilePath();
-                // 读取现有的注册表以保留完整的命令信息
+                // Lees het bestaande register om de volledige commando-informatie te behouden
                 Dictionary<string, CommandConfig> existingCommandsDict = new Dictionary<string, CommandConfig>();
                 if (File.Exists(registryFilePath))
                 {
@@ -283,13 +283,13 @@ namespace revit_mcp_plugin.UI
                         }
                     }
                 }
-                // 创建新的registry对象
+                // Maak een nieuw registry-object aan
                 CommandRegistryJson registry = new CommandRegistryJson();
                 registry.Commands = new List<CommandConfig>();
-                // 收集所有"已启用"的命令
+                // Verzamel alle 'ingeschakelde' commando's
                 foreach (var commandSet in commandSets)
                 {
-                    // 尝试从command.json中获取开发者信息
+                    // Probeer de ontwikkelaarsinformatie op te halen uit command.json
                     var commandSetDeveloper = new DeveloperInfo { Name = "Unspecified", Email = "Unspecified" };
                     string commandJsonPath = Path.Combine(PathManager.GetCommandsDirectoryPath(),
                         commandSet.Name, "command.json");
@@ -304,19 +304,19 @@ namespace revit_mcp_plugin.UI
                                 commandSetDeveloper = commandSetData.Developer ?? commandSetDeveloper;
                             }
                         }
-                        catch { /* 如果解析失败，使用默认值 */ }
+                        catch { /* Gebruik de standaardwaarde als het parsen mislukt */ }
                     }
 
                     foreach (var command in commandSet.Commands)
                     {
-                        // 只添加启用的命令到注册表
+                        // Voeg alleen ingeschakelde commando's toe aan het register
                         if (command.Enabled)
                         {
                             CommandConfig newConfig;
-                            // 检查命令是否已经存在于之前的注册表中
+                            // Controleer of het commando al bestaat in het eerdere register
                             if (existingCommandsDict.ContainsKey(command.CommandName))
                             {
-                                // 如果存在，保留原有信息，只更新启用状态和路径模板
+                                // Indien aanwezig, behoud de bestaande informatie en werk alleen de ingeschakelde status en het padsjabloon bij
                                 newConfig = existingCommandsDict[command.CommandName];
                                 newConfig.Enabled = true;
                                 newConfig.AssemblyPath = command.AssemblyPath;
@@ -324,7 +324,7 @@ namespace revit_mcp_plugin.UI
                             }
                             else
                             {
-                                // 如果是新命令，创建新配置
+                                // Als het een nieuw commando is, maak een nieuwe configuratie aan
                                 newConfig = new CommandConfig
                                 {
                                     CommandName = command.CommandName,
@@ -339,7 +339,7 @@ namespace revit_mcp_plugin.UI
                         }
                     }
                 }
-                // 构建摘要以显示
+                // Stel een samenvatting samen om weer te geven
                 string enabledFeaturesText = "";
                 int enabledCount = registry.Commands.Count;
                 foreach (var command in registry.Commands)
@@ -351,7 +351,7 @@ namespace revit_mcp_plugin.UI
                         : "";
                     enabledFeaturesText += $"• {commandSetName}: {command.CommandName}\n";
                 }
-                // 序列化并保存到文件
+                // Serialiseer en sla op in een bestand
                 string json = JsonConvert.SerializeObject(registry, Formatting.Indented);
                 File.WriteAllText(registryFilePath, json);
                 MessageBox.Show($"Command set settings successfully saved!\n\nEnabled {enabledCount} commands:\n{enabledFeaturesText}",
