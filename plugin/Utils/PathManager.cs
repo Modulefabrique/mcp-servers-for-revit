@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
@@ -11,8 +12,9 @@ namespace revit_mcp_plugin.Utils
         private const string ConfigFileName = "RevitMCPPlugin.dll.config";
         private const string NetworkRootPathKey = "NetworkRootPath";
 
-        private static string _networkRootPath;
-        private static bool _networkRootPathLoaded;
+        private static readonly Dictionary<string, string> _configSettingsCache = new Dictionary<string, string>();
+        private static XElement _appSettingsElement;
+        private static bool _configDocumentLoaded;
 
         /// <summary>
         /// Gets the root application data directory.
@@ -21,7 +23,7 @@ namespace revit_mcp_plugin.Utils
         /// </summary>
         public static string GetAppDataDirectoryPath()
         {
-            return GetConfiguredNetworkRootPath() ?? GetPluginDirectoryPath();
+            return GetConfigSetting(NetworkRootPathKey) ?? GetPluginDirectoryPath();
         }
 
         /// <summary>
@@ -34,15 +36,38 @@ namespace revit_mcp_plugin.Utils
         }
 
         /// <summary>
-        /// Reads the "NetworkRootPath" setting from RevitMCPPlugin.dll.config, if present.
-        /// Returns null when the config file or setting is missing, so callers fall back to the local plugin directory.
+        /// Reads a setting from the appSettings section of RevitMCPPlugin.dll.config, if present.
+        /// Returns null when the config file or the setting is missing.
+        /// Gedeeld door PathManager en McpToolsSyncService, zodat het configbestand maar één keer wordt ingelezen.
         /// </summary>
-        private static string GetConfiguredNetworkRootPath()
+        public static string GetConfigSetting(string key)
         {
-            if (_networkRootPathLoaded)
-                return _networkRootPath;
+            EnsureConfigDocumentLoaded();
 
-            _networkRootPathLoaded = true;
+            if (_configSettingsCache.TryGetValue(key, out string cachedValue))
+                return cachedValue;
+
+            string value = _appSettingsElement?
+                .Elements("add")
+                .FirstOrDefault(e => (string)e.Attribute("key") == key)?
+                .Attribute("value")?.Value;
+
+            if (string.IsNullOrWhiteSpace(value))
+                value = null;
+
+            _configSettingsCache[key] = value;
+            return value;
+        }
+
+        /// <summary>
+        /// Laadt RevitMCPPlugin.dll.config eenmalig in het geheugen.
+        /// </summary>
+        private static void EnsureConfigDocumentLoaded()
+        {
+            if (_configDocumentLoaded)
+                return;
+
+            _configDocumentLoaded = true;
 
             try
             {
@@ -50,22 +75,13 @@ namespace revit_mcp_plugin.Utils
                 if (File.Exists(configPath))
                 {
                     var document = XDocument.Load(configPath);
-                    string value = document.Root?
-                        .Element("appSettings")?
-                        .Elements("add")
-                        .FirstOrDefault(e => (string)e.Attribute("key") == NetworkRootPathKey)?
-                        .Attribute("value")?.Value;
-
-                    if (!string.IsNullOrWhiteSpace(value))
-                        _networkRootPath = value;
+                    _appSettingsElement = document.Root?.Element("appSettings");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error reading {ConfigFileName}: {ex.Message}");
             }
-
-            return _networkRootPath;
         }
         /// <summary>
         /// Gets the path to the Commands directory

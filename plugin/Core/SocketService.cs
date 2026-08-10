@@ -80,6 +80,9 @@ namespace revit_mcp_plugin.Core
             //}
             _port = 8080; // Hard-wired port number.
 
+            // Synchroniseer de MCP-server tools vanaf de netwerkschijf (indien geconfigureerd).
+            McpToolsSyncService.Sync(_logger);
+
             // Load command.
             CommandManager commandManager = new CommandManager(
                 _commandRegistry, _logger, configManager, _uiApp);
