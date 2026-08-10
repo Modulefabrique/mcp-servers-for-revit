@@ -11,7 +11,7 @@ namespace revit_mcp_plugin.Utils
 
         public Logger()
         {
-            _logFilePath = Path.Combine(PathManager.GetLogsDirectoryPath(), $"mcp_{DateTime.Now:yyyyMMdd}.log");
+            _logFilePath = Path.Combine(PathManager.GetLogsDirectoryPath(), $"mcp_{DateTime.Now:yyyyMMdd}_{Environment.UserName}.log");
 
         }
 

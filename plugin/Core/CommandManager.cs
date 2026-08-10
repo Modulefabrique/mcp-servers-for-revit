@@ -110,8 +110,10 @@ namespace revit_mcp_plugin.Core
                     return;
                 }
 
-                // Load assembly.
-                Assembly assembly = Assembly.LoadFrom(assemblyPath);
+                // Load assembly from bytes rather than Assembly.LoadFrom: this sidesteps .NET Framework's
+                // loadFromRemoteSources restriction when assemblyPath resolves to a network share.
+                byte[] rawAssembly = File.ReadAllBytes(assemblyPath);
+                Assembly assembly = Assembly.Load(rawAssembly);
 
                 // Find types that implement the IRevitCommand interface.
                 foreach (Type type in assembly.GetTypes())
