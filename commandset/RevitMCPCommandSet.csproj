@@ -14,11 +14,13 @@
         <RevitVersion>2024</RevitVersion>
         <TargetFramework>net48</TargetFramework>
         <DefineConstants>$(DefineConstants);REVIT2022_OR_GREATER;REVIT2023_OR_GREATER;REVIT2024_OR_GREATER</DefineConstants>
+        <OutputPath>bin\$(Configuration.Split(' ')[0])\$(RevitVersion)\</OutputPath>
     </PropertyGroup>
     <PropertyGroup Condition="$(Configuration.Contains('R26'))">
         <RevitVersion>2026</RevitVersion>
         <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
         <DefineConstants>$(DefineConstants);REVIT2022_OR_GREATER;REVIT2023_OR_GREATER;REVIT2024_OR_GREATER</DefineConstants>
+        <OutputPath>bin\$(Configuration.Split(' ')[0])\$(RevitVersion)\</OutputPath>
     </PropertyGroup>
 
     <PropertyGroup>
@@ -42,27 +44,33 @@
       <Reference Include="System.Net.Http" />
     </ItemGroup>
 
+    <!-- Debug: lokale Commands-map. Release: netwerkschijf (NetworkRootPath\Commands, zie
+         RevitMCPPlugin.dll.config). Beide hebben nu al dezelfde structuur:
+         Commands\commandRegistry.json
+         Commands\Commandset\command.json
+         Commands\Commandset\<RevitVersion>\<dll's> -->
+    <PropertyGroup Condition="$(Configuration.Contains('Debug'))">
+        <CommandsRootDir>C:\Users\t.vwolferen\revit-mcp\Commands\</CommandsRootDir>
+    </PropertyGroup>
+    <PropertyGroup Condition="$(Configuration.Contains('Release'))">
+        <CommandsRootDir>O:\02 - Software\021 - Revit\0221 - API\MCP\Commands\</CommandsRootDir>
+    </PropertyGroup>
+
     <Target Name="DeployCommandSet" AfterTargets="Build">
-        <!--PropertyGroup>
-            <PluginAddInRoot>$(ProjectDir)..\plugin\bin\AddIn $(RevitVersion) $(Configuration)\revit_mcp_plugin\</PluginAddInRoot>
-            <CommandSetPluginDir>$(PluginAddInRoot)Commands\RevitMCPCommandSet\</CommandSetPluginDir>
-            <RevitAddinsDir>$(AppData)\Autodesk\Revit\Addins\$(RevitVersion)\revit_mcp_plugin\Commands\RevitMCPCommandSet\</RevitAddinsDir>
-        </PropertyGroup-->
+        <PropertyGroup>
+            <CommandsetDir>$(CommandsRootDir)Commandset\</CommandsetDir>
+        </PropertyGroup>
 
-        <!--ItemGroup>
-            <CommandSetBinaries Include="$(TargetDir)*.dll;$(TargetDir)*.pdb" />
-            <CommandJsonFile Include="$(ProjectDir)..\command.json" />
-        </ItemGroup-->
+        <ItemGroup>
+            <CommandSetBinaries Include="$(TargetDir)*.dll" />
+            <CommandSetBinaries Include="$(TargetDir)*.pdb" />
+        </ItemGroup>
 
-        <!-- Always: Copy to plugin's AddIn output for release packaging -->
-        <!--MakeDir Directories="$(CommandSetPluginDir)$(RevitVersion)" /-->
-        <!--Copy SourceFiles="@(CommandSetBinaries)" DestinationFolder="$(CommandSetPluginDir)$(RevitVersion)\" /-->
-        <!--Copy SourceFiles="@(CommandJsonFile)" DestinationFolder="$(CommandSetPluginDir)" /-->
+        <Copy SourceFiles="@(CommandSetBinaries)" DestinationFolder="$(CommandsetDir)$(RevitVersion)\" />
 
-        <!-- Debug only: Copy to Revit Addins folder for local development -->
-        <!--MakeDir Directories="$(RevitAddinsDir)$(RevitVersion)" Condition="$(Configuration.Contains('Debug'))" /-->
-        <!--Copy SourceFiles="@(CommandSetBinaries)" DestinationFolder="$(RevitAddinsDir)$(RevitVersion)\" Condition="$(Configuration.Contains('Debug'))" /-->
-        <!--Copy SourceFiles="@(CommandJsonFile)" DestinationFolder="$(RevitAddinsDir)" Condition="$(Configuration.Contains('Debug'))" /-->
+        <!-- .json-bestanden komen uit de repo (commandset/), zodat ze centraal vanuit git beheerd worden. -->
+        <Copy SourceFiles="$(ProjectDir)command.json" DestinationFolder="$(CommandsetDir)" />
+        <Copy SourceFiles="$(ProjectDir)commandRegistry.json" DestinationFolder="$(CommandsRootDir)" />
     </Target>
 
 </Project>

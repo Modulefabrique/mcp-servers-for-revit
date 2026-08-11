@@ -68,26 +68,23 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>
-    <Target Name="CopyFiles" AfterTargets="CoreBuild">
+    <!-- Debug: geen extra actie nodig, de build-output in bin\Debug\$(RevitVersion)\ is voldoende
+         (de .addin en .dll.config landen daar al via de None Update-items hierboven). -->
+
+    <!-- Release: kopieer de build-output naar de netwerkschijf waar ook de andere ModuleFabrique-
+         addins vandaan komen, zonder het .addin-bestand (dat wordt daar los/anders beheerd). -->
+    <Target Name="CopyToNetworkAddinFolder" AfterTargets="Build" Condition="$(Configuration.Contains('Release'))">
+        <PropertyGroup>
+            <NetworkAddinDir>O:\02 - Software\021 - Revit\0221 - API\AddinFiles\$(RevitVersion)\ModuleFabriqueAddin\</NetworkAddinDir>
+        </PropertyGroup>
+
         <ItemGroup>
-            <RootItem Include="$(ProjectDir)*.addin" />
-            <AddinItem Include="$(TargetDir)*.dll" />
-            <AddinItem Include="$(TargetDir)*.pdb" />
-            <AddinItem Include="$(TargetDir)*.config" />
+            <ReleaseFiles Include="$(TargetDir)*.dll" />
+            <ReleaseFiles Include="$(TargetDir)*.pdb" />
+            <ReleaseFiles Include="$(TargetDir)*.config" />
         </ItemGroup>
 
-        <!--PropertyGroup>
-            <RootDir>bin\AddIn $(RevitVersion) $(Configuration)\</RootDir>
-            <AddinDir>$(RootDir)$(RootNameSpace)\</AddinDir>
-        </PropertyGroup-->
-        <!--Copy SourceFiles="@(RootItem)" DestinationFolder="$(RootDir)" /-->
-        <!--Copy SourceFiles="@(AddinItem)" DestinationFolder="$(AddinDir)" /-->
-
-        <!--ItemGroup>
-            <AddinFiles Include="$(RootDir)**\*.*" />
-        </ItemGroup-->
-        <!-- Message Text="Copy files to Addin folder" Importance="high"/ -->
-        <!--Copy SourceFiles="@(AddinFiles)" DestinationFolder="$(AppData)\Autodesk\Revit\Addins\$(RevitVersion)\%(RecursiveDir)" Condition="$(Configuration.Contains('Debug'))"/-->
+        <Copy SourceFiles="@(ReleaseFiles)" DestinationFolder="$(NetworkAddinDir)" />
     </Target>
 
 </Project>
