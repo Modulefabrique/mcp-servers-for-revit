@@ -18,12 +18,16 @@ namespace revit_mcp_plugin.Core
                 if (service.IsRunning)
                 {
                     service.Stop();
+
+                    Application.UpdateToggleButtonIcon(isRunning: service.IsRunning);
                     TaskDialog.Show("revitMCP", "Close Server");
                 }
                 else
                 {
                     service.Initialize(commandData.Application);
                     service.Start();
+
+                    Application.UpdateToggleButtonIcon(isRunning: service.IsRunning);
                     TaskDialog.Show("revitMCP", "Open Server");
                 }
 

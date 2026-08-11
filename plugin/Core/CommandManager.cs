@@ -4,7 +4,9 @@ using RevitMCPSDK.API.Utils;
 using revit_mcp_plugin.Configuration;
 using revit_mcp_plugin.Utils;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 
 namespace revit_mcp_plugin.Core
@@ -19,6 +21,16 @@ namespace revit_mcp_plugin.Core
         private readonly ConfigurationManager _configManager;
         private readonly UIApplication _uiApplication;
         private readonly RevitVersionAdapter _versionAdapter;
+
+        // Mappen waarin een command-assembly is gevonden. Assembly.Load(byte[]) laadt (in
+        // tegenstelling tot Assembly.LoadFrom) een assembly zonder bijbehorend pad, waardoor het
+        // CLR niet meer automatisch in dezelfde map naar de dependencies van die assembly zoekt
+        // (bv. Microsoft.CodeAnalysis(.CSharp).dll, Nice3point.Revit.Toolkit/Extensions.dll).
+        // _assemblyResolveHandler haalt die mappen hier op om dependencies alsnog te vinden.
+        private static readonly HashSet<string> _knownAssemblyDirectories =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly object _knownAssemblyDirectoriesLock = new object();
+        private static bool _resolveHandlerRegistered;
 
         /// <summary>
         /// Manager in charge of loading and managing commands.
@@ -38,6 +50,55 @@ namespace revit_mcp_plugin.Core
             _configManager = configManager;
             _uiApplication = uiApplication;
             _versionAdapter = new RevitVersionAdapter(_uiApplication.Application);
+
+            EnsureAssemblyResolveHandlerRegistered();
+        }
+
+        /// <summary>
+        /// Registreert eenmalig een AppDomain.AssemblyResolve-handler die dependencies van
+        /// command-assembly's alsnog vindt in de map waaruit die command-assembly geladen is
+        /// (lokaal of op de netwerkschijf) - het gedrag dat Assembly.LoadFrom gratis gaf, maar
+        /// Assembly.Load(byte[]) niet.
+        /// </summary>
+        private void EnsureAssemblyResolveHandlerRegistered()
+        {
+            lock (_knownAssemblyDirectoriesLock)
+            {
+                if (_resolveHandlerRegistered)
+                    return;
+
+                _resolveHandlerRegistered = true;
+                AppDomain.CurrentDomain.AssemblyResolve += ResolveCommandDependency;
+            }
+        }
+
+        private static Assembly ResolveCommandDependency(object sender, ResolveEventArgs args)
+        {
+            string dependencyFileName = new AssemblyName(args.Name).Name + ".dll";
+
+            string[] directoriesToSearch;
+            lock (_knownAssemblyDirectoriesLock)
+            {
+                directoriesToSearch = _knownAssemblyDirectories.ToArray();
+            }
+
+            foreach (string directory in directoriesToSearch)
+            {
+                string candidatePath = Path.Combine(directory, dependencyFileName);
+                if (File.Exists(candidatePath))
+                {
+                    try
+                    {
+                        return Assembly.Load(File.ReadAllBytes(candidatePath));
+                    }
+                    catch
+                    {
+                        // Probeer de volgende map als deze kandidaat niet geladen kan worden.
+                    }
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -110,13 +171,40 @@ namespace revit_mcp_plugin.Core
                     return;
                 }
 
+                // Zorg dat ResolveCommandDependency in deze map kan zoeken naar dependencies
+                // van deze command-assembly (zie EnsureAssemblyResolveHandlerRegistered hierboven).
+                lock (_knownAssemblyDirectoriesLock)
+                {
+                    _knownAssemblyDirectories.Add(Path.GetDirectoryName(assemblyPath));
+                }
+
                 // Load assembly from bytes rather than Assembly.LoadFrom: this sidesteps .NET Framework's
                 // loadFromRemoteSources restriction when assemblyPath resolves to a network share.
                 byte[] rawAssembly = File.ReadAllBytes(assemblyPath);
                 Assembly assembly = Assembly.Load(rawAssembly);
 
                 // Find types that implement the IRevitCommand interface.
-                foreach (Type type in assembly.GetTypes())
+                Type[] typesInAssembly;
+                try
+                {
+                    typesInAssembly = assembly.GetTypes();
+                }
+                catch (ReflectionTypeLoadException typeLoadEx)
+                {
+                    // GetTypes() gooit deze exception als één of meer dependencies niet gevonden
+                    // konden worden (ook na ResolveCommandDependency). ex.Message alleen ("Unable to
+                    // load one or more of the requested types...") verklapt niet welke dependency
+                    // het probleem is - LoaderExceptions wel.
+                    string details = string.Join("; ",
+                        typeLoadEx.LoaderExceptions.Where(e => e != null).Select(e => e.Message));
+                    _logger.Error("Kon niet alle types laden uit {0}: {1}", Path.GetFileName(assemblyPath), details);
+
+                    // Types die wél geladen konden worden, staan alsnog in typeLoadEx.Types (met null
+                    // op de plek van elk type dat mislukte) - daarmee proberen we nog steeds door te gaan.
+                    typesInAssembly = typeLoadEx.Types.Where(t => t != null).ToArray();
+                }
+
+                foreach (Type type in typesInAssembly)
                 {
                     if (typeof(RevitMCPSDK.API.Interfaces.IRevitCommand).IsAssignableFrom(type) &&
                         !type.IsInterface &&
@@ -153,7 +241,7 @@ namespace revit_mcp_plugin.Core
                             if (command.CommandName == config.CommandName)
                             {
                                 _commandRegistry.RegisterCommand(command);
-                                _logger.Info("Failed to create command instance [{0}]: {1}",
+                                _logger.Info("Command instance aangemaakt [{0}]: {1}",
                                     command.CommandName, Path.GetFileName(assemblyPath));
                                 break; // Exit the loop after finding a matching command.
                             }
