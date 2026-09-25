@@ -1,6 +1,8 @@
-﻿using System;
-using Autodesk.Revit.UI;
+﻿using Autodesk.Revit.UI;
+using System;
+using System.IO;
 using System.Reflection;
+using System.Windows;
 using System.Windows.Media.Imaging;
 
 
@@ -30,6 +32,14 @@ namespace revit_mcp_plugin.Core
             PushButtonData pushButtonData = new PushButtonData("ID_EXCMD_TOGGLE_REVIT_MCP", "Revit MCP\r\n Switch",
                 Assembly.GetExecutingAssembly().Location, "revit_mcp_plugin.Core.MCPServiceConnection");
             pushButtonData.ToolTip = "Open / Close mcp server";
+
+            
+
+            Stream manifestResourceStream = Assembly.GetExecutingAssembly().GetManifestResourceStream("revit_mcp_plugin.Core.Resources.mcp-server-black-16.png");
+            PngBitmapDecoder pngBitmapDecoder = new PngBitmapDecoder(manifestResourceStream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.Default);
+            pushButtonData.Image = pngBitmapDecoder.Frames[0];
+
+
             _toggleButton = mcpPanel.AddItem(pushButtonData) as PushButton;
 
             // Toon direct de juiste icoon-status: de server start niet automatisch op, dus dicht (zwart).
@@ -72,9 +82,9 @@ namespace revit_mcp_plugin.Core
             string color = isRunning ? "orange" : "black";
 
             _toggleButton.Image = new BitmapImage(new Uri(
-                $"/RevitMCPPlugin;component/Core/Ressources/mcp-server-{color}-16.png", UriKind.RelativeOrAbsolute));
+                $"/RevitMCPPlugin;component/Core/Resources/mcp-server-{color}-16.png", UriKind.RelativeOrAbsolute));
             _toggleButton.LargeImage = new BitmapImage(new Uri(
-                $"/RevitMCPPlugin;component/Core/Ressources/mcp-server-{color}-32.png", UriKind.RelativeOrAbsolute));
+                $"/RevitMCPPlugin;component/Core/Resources/mcp-server-{color}-32.png", UriKind.RelativeOrAbsolute));
         }
     }
 }

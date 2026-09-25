@@ -2,7 +2,11 @@
     <PropertyGroup>
         <OutputType>Library</OutputType>
         <RootNamespace>revit_mcp_plugin</RootNamespace>
-        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <Version>$([System.DateTime]::UtcNow.ToString('yyyy.MM.dd.HH'))</Version>
+        <AssemblyTitle>mcp-servers-for-revit-plugin</AssemblyTitle>
+        <Product>mcp-servers-for-revit-plugin</Product>
+        <Company>Modulefabrique</Company>
+        <Copyright>Copyright © Modulefabrique $([System.DateTime]::Now.Year)</Copyright>
         <UseWindowsForms>true</UseWindowsForms>
         <UseWPF>true</UseWPF>
         <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
@@ -29,12 +33,12 @@
         <StartArguments>/language ENG</StartArguments>
     </PropertyGroup>
     <ItemGroup>
-      <None Remove="Core\Ressources\mcp-server-black-16.png" />
-      <None Remove="Core\Ressources\mcp-server-black-32.png" />
-      <None Remove="Core\Ressources\mcp-server-blue-16.png" />
-      <None Remove="Core\Ressources\mcp-server-blue-32.png" />
-      <None Remove="Core\Ressources\mcp-server-orange-16.png" />
-      <None Remove="Core\Ressources\mcp-server-orange-32.png" />
+      <None Remove="Core\Resources\mcp-server-black-16.png" />
+      <None Remove="Core\Resources\mcp-server-black-32.png" />
+      <None Remove="Core\Resources\mcp-server-blue-16.png" />
+      <None Remove="Core\Resources\mcp-server-blue-32.png" />
+      <None Remove="Core\Resources\mcp-server-orange-16.png" />
+      <None Remove="Core\Resources\mcp-server-orange-32.png" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
@@ -44,18 +48,18 @@
         <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
     </ItemGroup>
     <ItemGroup>
-        <EmbeddedResource Include="Core\Ressources\icon-16.png" />
-        <EmbeddedResource Include="Core\Ressources\icon-32.png" />
-        <EmbeddedResource Include="Core\Ressources\mcp-server-black-16.png" />
-        <EmbeddedResource Include="Core\Ressources\mcp-server-black-32.png" />
-        <EmbeddedResource Include="Core\Ressources\mcp-server-blue-16.png" />
-        <EmbeddedResource Include="Core\Ressources\mcp-server-blue-32.png" />
-        <EmbeddedResource Include="Core\Ressources\mcp-server-orange-16.png" />
-        <EmbeddedResource Include="Core\Ressources\mcp-server-orange-32.png" />
+        <EmbeddedResource Include="Core\Resources\icon-16.png" />
+        <EmbeddedResource Include="Core\Resources\icon-32.png" />
+        <EmbeddedResource Include="Core\Resources\mcp-server-black-16.png" />
+        <EmbeddedResource Include="Core\Resources\mcp-server-black-32.png" />
+        <EmbeddedResource Include="Core\Resources\mcp-server-blue-16.png" />
+        <EmbeddedResource Include="Core\Resources\mcp-server-blue-32.png" />
+        <EmbeddedResource Include="Core\Resources\mcp-server-orange-16.png" />
+        <EmbeddedResource Include="Core\Resources\mcp-server-orange-32.png" />
     </ItemGroup>
     <ItemGroup>
-        <EmbeddedResource Include="Core\Ressources\settings-16.png" />
-        <EmbeddedResource Include="Core\Ressources\settings-32.png" />
+        <EmbeddedResource Include="Core\Resources\settings-16.png" />
+        <EmbeddedResource Include="Core\Resources\settings-32.png" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
