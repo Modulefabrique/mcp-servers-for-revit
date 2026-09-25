@@ -60,10 +60,18 @@ namespace RevitMCPCommandSet.Models.Common
         [JsonProperty("boundingBoxMax")]
         public JZPoint BoundingBoxMax { get; set; } = null;
         /// <summary>
-        /// Maximaal aantal elementen
+        /// Maximaal aantal elementen. Zonder waarde (of &lt;= 0) geldt er geen limiet en worden alle
+        /// elementen die aan de filtercriteria voldoen geretourneerd.
         /// </summary>
         [JsonProperty("maxElements")]
-        public int MaxElements { get; set; } = 50;
+        public int? MaxElements { get; set; } = null;
+        /// <summary>
+        /// Haalt op of stelt in of per element de uitgebreide informatie wordt geretourneerd (peil, bounding box,
+        /// parameters, weergave-/ruimte-/annotatiespecifieke gegevens, enz.). Standaard false: dan wordt alleen
+        /// de basisinformatie (Id, naam, familienaam, categorie) geretourneerd, om de response licht te houden.
+        /// </summary>
+        [JsonProperty("includeDetails")]
+        public bool IncludeDetails { get; set; } = false;
         /// <summary>
         /// Valideert de geldigheid van de filterinstellingen en controleert op mogelijke conflicten
         /// </summary>

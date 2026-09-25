@@ -20,13 +20,15 @@ export function registerGetAvailableFamilyTypesTool(server: McpServer) {
       limit: z
         .number()
         .optional()
-        .describe("Maximum number of family types to return"),
+        .describe(
+          "Maximum number of family types to return. Omit for no limit (all matching family types are returned)."
+        ),
     },
     async (args, extra) => {
       const params = {
         categoryList: args.categoryList || [],
         familyNameFilter: args.familyNameFilter || "",
-        limit: args.limit || 100,
+        limit: args.limit,
       };
 
       try {

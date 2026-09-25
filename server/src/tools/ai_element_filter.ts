@@ -5,7 +5,7 @@ import { withRevitConnection } from "../utils/ConnectionManager.js";
 export function registerAIElementFilterTool(server: McpServer) {
   server.tool(
     "ai_element_filter",
-    "An intelligent Revit element querying tool designed specifically for AI assistants to retrieve detailed element information from Revit projects. This tool allows the AI to request elements matching specific criteria (such as category, type, visibility, or spatial location) and then perform further analysis on the returned data to answer complex user queries about Revit model elements. Example: When a user asks 'Find all walls taller than 5m in the project', the AI would: 1) Call this tool with parameters: {\"filterCategory\": \"OST_Walls\", \"includeInstances\": true}, 2) Receive detailed information about all wall instances in the project, 3) Process the returned data to filter walls with height > 5000mm, 4) Present the filtered results to the user with relevant details.",
+    "An intelligent Revit element querying tool designed specifically for AI assistants to retrieve element information from Revit projects. This tool allows the AI to request elements matching specific criteria (such as category, type, visibility, or spatial location) and then perform further analysis on the returned data to answer user queries about Revit model elements. By default only lightweight base info is returned per element (Id, Name, FamilyName, Category, BuiltInCategory). Omit includeDetails unless the question needs geometry, level or dimension data - extended details make the response much larger. Example 1 (default, no details): When a user asks 'Which door types are used in the project?' or 'How many doors are there?', call this tool with {\"filterCategory\": \"OST_Doors\", \"includeInstances\": true} and group/count the results by Name/FamilyName. Example 2 (details needed): When a user asks 'Find all walls taller than 5m in the project', 1) call this tool with {\"filterCategory\": \"OST_Walls\", \"includeInstances\": true, \"includeDetails\": true}, 2) receive extended information (level, bounding box, thickness/height) about all wall instances, 3) filter walls with height > 5000mm, 4) present the filtered results to the user with relevant details.",
     {
       data: z.object({
         filterCategory: z
@@ -65,7 +65,11 @@ export function registerAIElementFilterTool(server: McpServer) {
           maxElements: z
           .number()
           .optional()
-          .describe("The maximum number of elements to find in a single tool invocation. Default is 50. Values exceeding 50 are not recommended for performance reasons."),
+          .describe("The maximum number of elements to find in a single tool invocation. Omit for no limit (all matching elements are returned) — advisable to set a limit for large models to avoid performance issues. make sure to set a reasonable limit to get all the elements you need, as the tool will return only up to this number of elements."),
+        includeDetails: z
+          .boolean()
+          .optional()
+          .describe("When true, returns extended information per element depending on its kind: level, bounding box (mm), thickness/height, type dimension parameters, room area/volume, view properties, annotation text/dimension values, group/link info. Defaults to false: only Id, Name, FamilyName, Category and BuiltInCategory are returned, which keeps the response small. Only request details when the question actually needs them. FamilyName is omitted when the element itself is a family (its Name already is the family name)."),
       })
         .describe("Configuration parameters for the Revit element filter tool. These settings determine which elements will be selected from the Revit project based on various filtering criteria. Multiple filters can be combined to achieve precise element selection. All spatial coordinates should be provided in millimeters."),
     },

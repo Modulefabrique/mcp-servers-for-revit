@@ -58,19 +58,23 @@ namespace RevitMCPCommandSet.Services
                 var elementList = GetFilteredElements(doc, FilterSetting);
                 if (elementList == null || !elementList.Any())
                     throw new Exception("Geen elementen gevonden die aan de opgegeven criteria voldoen in het project, controleer de filterinstellingen");
-                // Limiet voor het maximaal aantal elementen van het filter
+                // Limiet voor het maximaal aantal elementen van het filter, alleen als expliciet opgegeven
                 string message = "";
-                if (FilterSetting.MaxElements > 0)
+                if (FilterSetting.MaxElements.HasValue && FilterSetting.MaxElements.Value > 0)
                 {
-                    if (elementList.Count > FilterSetting.MaxElements)
+                    int maxElements = FilterSetting.MaxElements.Value;
+                    if (elementList.Count > maxElements)
                     {
-                        elementList = elementList.Take(FilterSetting.MaxElements).ToList();
-                        message = $". Bovendien voldoen er in totaal {elementList.Count} elementen aan de filtercriteria, alleen de eerste {FilterSetting.MaxElements} worden weergegeven";
+                        int totalCount = elementList.Count;
+                        elementList = elementList.Take(maxElements).ToList();
+                        message = $". Bovendien voldoen er in totaal {totalCount} elementen aan de filtercriteria, alleen de eerste {maxElements} worden weergegeven";
                     }
                 }
 
-                // Haal de informatie op van de elementen met de opgegeven Id's
-                elementInfoList = GetElementFullInfo(doc, elementList);
+                // Haal de informatie op van de elementen met de opgegeven Id's (standaard alleen basisinformatie)
+                elementInfoList = FilterSetting.IncludeDetails
+                    ? GetElementFullInfo(doc, elementList)
+                    : GetElementBaseInfo(elementList);
 
                 Result = new AIResult<List<object>>
                 {
@@ -286,7 +290,61 @@ namespace RevitMCPCommandSet.Services
         }
 
         /// <summary>
-        /// Haalt modelelementinformatie op
+        /// Haalt per element alleen de basisinformatie op (standaard, lichte response)
+        /// </summary>
+        public static List<object> GetElementBaseInfo(IList<Element> elementCollector)
+        {
+            List<object> infoList = new List<object>();
+            foreach (var element in elementCollector)
+            {
+                var info = CreateBaseInfo(element);
+                if (info != null)
+                {
+                    infoList.Add(info);
+                }
+            }
+            return infoList;
+        }
+
+        /// <summary>
+        /// Maakt de lichte basisinformatie voor één element aan (Id, naam, familienaam, categorie).
+        /// Is het element zelf een familie, dan is de naam al de familienaam en wordt FamilyName weggelaten.
+        /// </summary>
+        public static ElementBaseInfo CreateBaseInfo(Element element)
+        {
+            try
+            {
+                if (element == null)
+                    return null;
+
+                // Een Family heeft zelf geen Category, alleen een FamilyCategory
+                Category category = element.Category ?? (element as Family)?.FamilyCategory;
+
+                string familyName = null;
+                if (element is ElementType elementType)
+                    familyName = elementType.FamilyName;
+                else if (!(element is Family))
+                    familyName = element.get_Parameter(BuiltInParameter.ELEM_FAMILY_PARAM)?.AsValueString();
+
+                return new ElementBaseInfo
+                {
+                    Id = element.Id.GetIntValue(),
+                    Name = element.Name,
+                    FamilyName = string.IsNullOrEmpty(familyName) ? null : familyName,
+                    Category = category?.Name,
+                    BuiltInCategory = category != null ?
+                        Enum.GetName(typeof(BuiltInCategory), category.Id.GetIntValue()) : null
+                };
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"Fout bij het aanmaken van de basisinformatie van het element: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Haalt per element de uitgebreide informatie op, afhankelijk van het soort element
         /// </summary>
         public static List<object> GetElementFullInfo(Document doc, IList<Element> elementCollector)
         {
@@ -295,20 +353,21 @@ namespace RevitMCPCommandSet.Services
             // Elementen ophalen en verwerken
             foreach (var element in elementCollector)
             {
-                // Bepaal of het een fysiek modelelement is
-                // Haal elementinstantie-informatie op
-                if (element?.Category?.HasMaterialQuantities ?? false)
+                // Haal elementtype-informatie op. Moet vóór de controle op fysieke modelelementen staan:
+                // ook types (bijv. WallType) hebben een categorie met HasMaterialQuantities
+                if (element is ElementType elementType)
                 {
-                    var info = CreateElementFullInfo(doc, element);
+                    var info = CreateTypeFullInfo(doc, elementType);
                     if (info != null)
                     {
                         infoList.Add(info);
                     }
                 }
-                // Haal elementtype-informatie op
-                else if (element is ElementType elementType)
+                // Bepaal of het een fysiek modelelement is
+                // Haal elementinstantie-informatie op
+                else if (element?.Category?.HasMaterialQuantities ?? false)
                 {
-                    var info = CreateTypeFullInfo(doc, elementType);
+                    var info = CreateElementFullInfo(doc, element);
                     if (info != null)
                     {
                         infoList.Add(info);
@@ -447,9 +506,10 @@ namespace RevitMCPCommandSet.Services
             // Familienaam
             typeInfo.FamilyName = elementType.FamilyName;
             // Categorie
-            typeInfo.Category = elementType.Category.Name;
+            typeInfo.Category = elementType.Category?.Name;
             // Ingebouwde categorie
-            typeInfo.BuiltInCategory = Enum.GetName(typeof(BuiltInCategory), elementType.Category.Id.GetIntValue());
+            typeInfo.BuiltInCategory = elementType.Category != null ?
+                Enum.GetName(typeof(BuiltInCategory), elementType.Category.Id.GetIntValue()) : null;
             // Parameterwoordenboek
             typeInfo.Parameters = GetDimensionParameters(elementType);
             ParameterInfo thicknessParam = GetThicknessInfo(elementType);      // Dikteparameter
@@ -692,10 +752,13 @@ namespace RevitMCPCommandSet.Services
                         position.Z * 304.8);
                 }
                 // Verwerk maatvoering
-                else if (element is Dimension dimension)
+                else if (element is Dimension dimension && !(element is SpotDimension))
                 {
-                    info.DimensionValue = dimension.Value.ToString();
-                    XYZ origin = dimension.Origin;
+                    info.DimensionValue = GetDimensionValue(dimension);
+                    // Bij een maatketting is Origin niet beschikbaar, gebruik dan de oorsprong van het eerste segment
+                    XYZ origin = dimension.NumberOfSegments > 0
+                        ? dimension.Segments.get_Item(0).Origin
+                        : dimension.Origin;
                     // Omzetten naar mm
                     info.Position = new JZPoint(
                         origin.X * 304.8,
@@ -723,6 +786,37 @@ namespace RevitMCPCommandSet.Services
                 return null;
             }
         }
+        /// <summary>
+        /// Haalt de waarde van een maatvoering op, omgezet naar mm (hoekmaten in graden).
+        /// Bij een maatketting worden de segmentwaarden gescheiden door "; " geretourneerd.
+        /// </summary>
+        public static string GetDimensionValue(Dimension dimension)
+        {
+            bool isAngular = dimension.DimensionShape == DimensionShape.Angular;
+            string Format(double? value)
+            {
+                if (!value.HasValue)
+                    return null;
+                double converted = isAngular
+                    ? value.Value * 180.0 / Math.PI     // Radialen naar graden
+                    : value.Value * 304.8;              // Voet naar mm
+                return Math.Round(converted, 2).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            if (dimension.NumberOfSegments > 0)
+            {
+                var segmentValues = new List<string>();
+                foreach (DimensionSegment segment in dimension.Segments)
+                {
+                    string value = Format(segment.Value);
+                    if (value != null)
+                        segmentValues.Add(value);
+                }
+                return segmentValues.Count > 0 ? string.Join("; ", segmentValues) : null;
+            }
+            return Format(dimension.Value);
+        }
+
         /// <summary>
         /// Maakt informatie voor groep of link aan
         /// </summary>
@@ -1091,6 +1185,22 @@ namespace RevitMCPCommandSet.Services
 #endif
         }
 
+    }
+
+    /// <summary>
+    /// Lichte basisinformatie van een element, standaard geretourneerd door ai_element_filter
+    /// </summary>
+    public class ElementBaseInfo
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        /// <summary>
+        /// Wordt weggelaten als er geen aparte familienaam is (bijv. als het element zelf een familie is)
+        /// </summary>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string FamilyName { get; set; }
+        public string Category { get; set; }
+        public string BuiltInCategory { get; set; }
     }
 
     /// <summary>

@@ -166,7 +166,7 @@ namespace RevitMCPCommandSet.Services
                     }
 
                     // Stap 3: generieke methode aanroepen om familie-exemplaar aan te maken
-                    using (Transaction transaction = new Transaction(doc, "Puntelement aanmaken"))
+                    using (Transaction transaction = new Transaction(doc, "Lijnelement aanmaken"))
                     {
                         transaction.Start();
                         switch (builtInCategory)

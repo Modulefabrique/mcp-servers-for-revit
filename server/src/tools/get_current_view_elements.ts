@@ -26,14 +26,16 @@ export function registerGetCurrentViewElementsTool(server: McpServer) {
       limit: z
         .number()
         .optional()
-        .describe("Maximum number of elements to return"),
+        .describe(
+          "Maximum number of elements to return. Omit for no limit (all matching elements are returned)."
+        ),
     },
     async (args, extra) => {
       const params = {
         modelCategoryList: args.modelCategoryList || [],
         annotationCategoryList: args.annotationCategoryList || [],
         includeHidden: args.includeHidden || false,
-        limit: args.limit || 100,
+        limit: args.limit,
       };
 
       try {

@@ -24,7 +24,8 @@ namespace RevitMCPCommandSet.Commands.Access
                 List<string> modelCategoryList = parameters?["modelCategoryList"]?.ToObject<List<string>>() ?? new List<string>();
                 List<string> annotationCategoryList = parameters?["annotationCategoryList"]?.ToObject<List<string>>() ?? new List<string>();
                 bool includeHidden = parameters?["includeHidden"]?.Value<bool>() ?? false;
-                int limit = parameters?["limit"]?.Value<int>() ?? 100;
+                // Geen fallbackwaarde: zonder expliciete limiet worden alle elementen geretourneerd
+                int? limit = parameters?["limit"]?.Value<int>();
 
                 // Queryparameters instellen
                 _handler.SetQueryParameters(modelCategoryList, annotationCategoryList, includeHidden, limit);

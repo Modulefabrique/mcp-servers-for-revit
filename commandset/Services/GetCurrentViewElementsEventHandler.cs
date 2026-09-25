@@ -42,7 +42,8 @@ namespace RevitMCPCommandSet.Services
         private List<string> _modelCategoryList;
         private List<string> _annotationCategoryList;
         private bool _includeHidden;
-        private int _limit;
+        // Geen waarde = geen limiet: alle overeenkomende elementen worden geretourneerd
+        private int? _limit;
 
         // Uitvoeringsresultaat
         public ViewElementsResult ResultInfo { get; private set; }
@@ -52,7 +53,7 @@ namespace RevitMCPCommandSet.Services
         private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         // Stel de queryparameters in
-        public void SetQueryParameters(List<string> modelCategoryList, List<string> annotationCategoryList, bool includeHidden, int limit)
+        public void SetQueryParameters(List<string> modelCategoryList, List<string> annotationCategoryList, bool includeHidden, int? limit)
         {
             _modelCategoryList = modelCategoryList;
             _annotationCategoryList = annotationCategoryList;
@@ -127,10 +128,10 @@ namespace RevitMCPCommandSet.Services
                     elements = elements.Where(e => !e.IsHidden(activeView)).ToList();
                 }
 
-                // Beperk het aantal geretourneerde resultaten
-                if (_limit > 0 && elements.Count > _limit)
+                // Beperk het aantal geretourneerde resultaten, alleen als er expliciet een limiet is opgegeven
+                if (_limit.HasValue && _limit.Value > 0 && elements.Count > _limit.Value)
                 {
-                    elements = elements.Take(_limit).ToList();
+                    elements = elements.Take(_limit.Value).ToList();
                 }
 
                 // Bouw het resultaat op
