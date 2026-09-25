@@ -2,6 +2,9 @@
 
     <PropertyGroup>
         <UseWPF>true</UseWPF>
+        <Version>$([System.DateTime]::UtcNow.ToString('yyyy.MM.dd.HH'))</Version>
+        <Company>Modulefabrique</Company>
+        <Copyright>Copyright © Modulefabrique $([System.DateTime]::Now.Year)</Copyright>
         <LangVersion>latest</LangVersion>
         <PlatformTarget>x64</PlatformTarget>
         <ImplicitUsings>true</ImplicitUsings>
@@ -43,6 +46,39 @@
     <ItemGroup>
       <Reference Include="System.Net.Http" />
     </ItemGroup>
+
+    <!-- MF_Utilities (ParameterHelper e.a.) - eigen add-in van Modulefabrique, geen NuGet-package en
+         geen ProjectReference (aparte solution/repo). Gerefereerd vanaf de netwerkmap waar de
+         Release-build van Modulefabrique_Addin al staat (dezelfde map als RevitMCPPlugin.dll, zie
+         CopyToNetworkAddinFolder in RevitMCPPlugin.csproj) - dus geen apart publicatiepad nodig.
+         Private=false: we laten MSBuild NIET automatisch de dependencies van MF_Utilities.dll
+         meekopiëren, want die map bevat ook een eigen Newtonsoft.Json.dll/RevitMCPSDK.dll die niet de
+         hier via NuGet gebruikte versies mogen overschrijven. Zie CopyMFUtilitiesDependencies hieronder
+         voor de expliciete, beperkte kopieerlijst van wat MF_Utilities wél nodig heeft. -->
+    <PropertyGroup>
+        <ModuleFabriqueAddinDir>O:\02 - Software\021 - Revit\0221 - API\AddinFiles\$(RevitVersion)\ModuleFabriqueAddin\</ModuleFabriqueAddinDir>
+    </PropertyGroup>
+    <ItemGroup>
+        <Reference Include="MF_Utilities">
+            <HintPath>$(ModuleFabriqueAddinDir)MF_Utilities.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+
+    <!-- Kopieert MF_Utilities.dll + de specifieke runtime-dependencies die het nodig heeft (Excel-/
+         Office-interop, en op net8 System.Drawing.Common) naar $(TargetDir), zodat ze via de bestaande
+         DeployCommandSet-target hieronder vanzelf meekomen naar Commands\Commandset\<RevitVersion>\ -
+         waar CommandManager's AssemblyResolve-handler ze kan vinden naast RevitMCPCommandSet.dll. -->
+    <Target Name="CopyMFUtilitiesDependencies" AfterTargets="Build" BeforeTargets="DeployCommandSet">
+        <ItemGroup>
+            <MFUtilitiesDependencies Include="$(ModuleFabriqueAddinDir)MF_Utilities.dll" />
+            <MFUtilitiesDependencies Include="$(ModuleFabriqueAddinDir)office.dll" />
+            <MFUtilitiesDependencies Include="$(ModuleFabriqueAddinDir)Microsoft.Office.Interop.Excel.dll" />
+            <MFUtilitiesDependencies Include="$(ModuleFabriqueAddinDir)System.Drawing.Common.dll" Condition="$(Configuration.Contains('R26'))" />
+        </ItemGroup>
+
+        <Copy SourceFiles="@(MFUtilitiesDependencies)" DestinationFolder="$(TargetDir)" />
+    </Target>
 
     <!-- Debug: lokale Commands-map. Release: netwerkschijf (NetworkRootPath\Commands, zie
          RevitMCPPlugin.dll.config). Beide hebben nu al dezelfde structuur:
