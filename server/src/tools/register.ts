@@ -3,6 +3,22 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
+// Tools die tijdelijk niet geregistreerd worden (bestandsnaam zonder extensie).
+// Zet een regel in commentaar om de tool weer beschikbaar te maken.
+const disabledTools = new Set<string>([
+  "analyze_model_statistics",
+  "export_room_data",
+  "get_material_quantities",
+  "query_stored_data",
+  "say_hello",
+  "search_modules",
+  "store_project_data",
+  "store_room_data",
+  "use_module",
+  "tag_all_rooms",
+  "tag_all_walls",
+]);
+
 export async function registerTools(server: McpServer) {
   // Verkrijg het directorypad van het huidige bestand
   const __filename = fileURLToPath(import.meta.url);
@@ -23,6 +39,11 @@ export async function registerTools(server: McpServer) {
 
   // Importeer en registreer elke tool dynamisch
   for (const file of toolFiles) {
+    if (disabledTools.has(file.replace(/\.(ts|js)$/, ""))) {
+      console.error(`Tool overgeslagen (uitgeschakeld): ${file}`);
+      continue;
+    }
+
     try {
       // Bouw het importpad op
       const importPath = `./${file.replace(/\.(ts|js)$/, ".js")}`;
