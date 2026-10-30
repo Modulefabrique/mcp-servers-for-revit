@@ -137,6 +137,11 @@
       "commandName": "get_parameters",
       "description": "Get the values of specific parameters on one or more elements",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "manage_materials",
+      "description": "Create, list and update materials according to the NAAKT naming convention",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

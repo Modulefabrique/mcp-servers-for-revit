@@ -3,9 +3,23 @@
     <OutputType>Exe</OutputType>
     <Configurations>Debug R26</Configurations>
     <Configurations>$(Configurations);Release R26</Configurations>
+    <!-- Gelijk aan de commandset (R26), anders kan dit project er niet naar verwijzen. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="$(RevitVersion).*" />
     <PackageReference Include="Nice3point.TUnit.Revit" Version="$(RevitVersion).*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\commandset\RevitMCPCommandSet.csproj" />
+  </ItemGroup>
+
+  <!-- De commandset verwijst naar MF_Utilities met Private=false (kopieert hem niet mee). De tests
+       draaien in Revit's proces en hebben de DLL dus zelf naast zich nodig voor NaaktCatalogUtils. -->
+  <ItemGroup>
+    <Reference Include="MF_Utilities">
+      <HintPath>O:\02 - Software\021 - Revit\0221 - API\AddinFiles\$(RevitVersion)\ModuleFabriqueAddin\MF_Utilities.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>

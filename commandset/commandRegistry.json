@@ -414,6 +414,22 @@
         "organization": "mcp-servers-for-revit"
       },
       "description": "Get the values of specific parameters on one or more elements"
+    },
+    {
+      "commandName": "manage_materials",
+      "assemblyPath": "CommandSet\\{VERSION}\\RevitMCPCommandSet.dll",
+      "enabled": true,
+      "supportedRevitVersions": [
+        "2024",
+        "2026"
+      ],
+      "developer": {
+        "name": "mcp-servers-for-revit",
+        "email": "",
+        "website": "",
+        "organization": "mcp-servers-for-revit"
+      },
+      "description": "Create, list and update materials according to the NAAKT naming convention"
     }
   ]
 }
