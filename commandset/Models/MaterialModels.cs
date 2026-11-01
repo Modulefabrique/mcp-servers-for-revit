@@ -87,7 +87,10 @@ namespace RevitMCPCommandSet.Models
         [JsonProperty("cutBackground")]
         public MaterialPatternInput CutBackground { get; set; }
 
-        /// <summary>Naam of ElementId van een bestaand materiaal waarvan klasse, assets, kleur en arcering worden overgenomen.</summary>
+        /// <summary>
+        /// Naam of ElementId van een bestaand materiaal als sjabloon. Create dupliceert het sjabloon in zijn
+        /// geheel; update neemt klasse, kleur en arcering over. De assets worden in beide gevallen gedeeld met het sjabloon, nooit gekopieerd.
+        /// </summary>
         [JsonProperty("template")]
         public string Template { get; set; }
     }

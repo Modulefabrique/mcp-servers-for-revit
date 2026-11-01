@@ -241,11 +241,24 @@ namespace RevitMCPCommandSet.Utils
             {
                 ApplyInTransaction(doc, "Materialen aanmaken (NAAKT)", planned, plan =>
                 {
-                    ElementId id = Material.Create(doc, plan.NewName);
-                    var material = (Material)doc.GetElement(id);
-                    plan.Props.ApplyTo(material, out List<string> warnings);
-                    plan.Item.Id = id.GetValue().ToString(CultureInfo.InvariantCulture);
-                    AddWarnings(plan.Item, warnings);
+                    // Met sjabloon: Revit dupliceert het hele materiaal (alle assets, identiteitsgegevens,
+                    // weergave, ...). De assets moeten gedeeld blijven met het sjabloon; mocht Duplicate
+                    // toch kopieën maken, dan worden die hier vervangen en opgeruimd.
+                    var templateWarnings = new List<string>();
+                    Material material;
+                    if (plan.Props.Template != null)
+                    {
+                        material = plan.Props.Template.Duplicate(plan.NewName);
+                        ShareAssets(material, plan.Props.Template, deleteReplaced: true, templateWarnings);
+                    }
+                    else
+                    {
+                        material = (Material)doc.GetElement(Material.Create(doc, plan.NewName));
+                    }
+
+                    plan.Props.ApplyTo(material, copyTemplate: false, out List<string> warnings);
+                    plan.Item.Id = material.Id.GetValue().ToString(CultureInfo.InvariantCulture);
+                    AddWarnings(plan.Item, templateWarnings.Concat(warnings).ToList());
                 });
             }
 
@@ -387,7 +400,7 @@ namespace RevitMCPCommandSet.Utils
                 ApplyInTransaction(doc, "Materialen aanpassen (NAAKT)", planned, plan =>
                 {
                     if (plan.NewName != null) plan.Material.Name = plan.NewName;
-                    plan.Props.ApplyTo(plan.Material, out List<string> warnings);
+                    plan.Props.ApplyTo(plan.Material, copyTemplate: true, out List<string> warnings);
                     AddWarnings(plan.Item, warnings);
                 });
             }
@@ -542,12 +555,13 @@ namespace RevitMCPCommandSet.Utils
                 return changes;
             }
 
-            // Eerst het sjabloon, daarna de expliciet opgegeven waardes (die winnen).
-            public void ApplyTo(Material material, out List<string> warnings)
+            // Eerst het sjabloon, daarna de expliciet opgegeven waardes (die winnen). copyTemplate=false
+            // als het materiaal al een duplicaat van het sjabloon is (create).
+            public void ApplyTo(Material material, bool copyTemplate, out List<string> warnings)
             {
                 warnings = new List<string>();
 
-                if (Template != null) CopyFromTemplate(material, Template, warnings);
+                if (copyTemplate && Template != null) CopyFromTemplate(material, Template, warnings);
                 if (Color != null) material.Color = Color;
 
                 Apply(SurfaceForeground, id => material.SurfaceForegroundPatternId = id, c => material.SurfaceForegroundPatternColor = c);
@@ -644,9 +658,10 @@ namespace RevitMCPCommandSet.Utils
             return true;
         }
 
-        // Neemt van een sjabloonmateriaal over wat de WPF-tool van Modulefabrique ook overneemt: klasse,
-        // de drie assets en 'render-weergave voor schaduw', plus kleur en arcering (die vult de WPF-tool
-        // in via de velden). Eén eigenschap die niet over te nemen is, laat de rest ongemoeid.
+        // Neemt bij update van een sjabloonmateriaal over: klasse, de drie assets (gedeeld) en
+        // 'render-weergave voor schaduw', plus kleur en arcering. Bij create is dit niet nodig: daar wordt
+        // het sjabloon in zijn geheel gedupliceerd. Eén eigenschap die niet over te nemen is, laat de rest
+        // ongemoeid.
         private static void CopyFromTemplate(Material target, Material template, List<string> warnings)
         {
             TryCopy("render-weergave", () => target.UseRenderAppearanceForShading = template.UseRenderAppearanceForShading, warnings);
@@ -656,20 +671,7 @@ namespace RevitMCPCommandSet.Utils
                 TryCopy("materiaalklasse", () => target.MaterialClass = template.MaterialClass, warnings);
             }
 
-            if (IsValid(template.AppearanceAssetId))
-            {
-                TryCopy("appearance asset", () => target.AppearanceAssetId = template.AppearanceAssetId, warnings);
-            }
-
-            if (IsValid(template.StructuralAssetId))
-            {
-                TryCopy("structural asset", () => target.StructuralAssetId = template.StructuralAssetId, warnings);
-            }
-
-            if (IsValid(template.ThermalAssetId))
-            {
-                TryCopy("thermal asset", () => target.ThermalAssetId = template.ThermalAssetId, warnings);
-            }
+            ShareAssets(target, template, deleteReplaced: false, warnings);
 
             if (template.Color != null && template.Color.IsValid)
             {
@@ -691,6 +693,57 @@ namespace RevitMCPCommandSet.Utils
         {
             if (IsValid(patternId)) TryCopy(label, () => setId(patternId), warnings);
             if (color != null && color.IsValid) TryCopy(label + " kleur", () => setColor(color), warnings);
+        }
+
+        // Laat target dezelfde assets (appearance, physical/structural, thermal) gebruiken als source: gedeeld,
+        // nooit gekopieerd. Physical en thermal gaan via SetMaterialAspectByPropertySet, de officiële route
+        // voor property sets. deleteReplaced=true ruimt de assets op die target daardoor niet meer gebruikt;
+        // alleen bedoeld voor een vers gedupliceerd materiaal (create), waar dat eventuele kopieën van Revit
+        // zelf zijn. Bij update blijven vervangen assets staan, die kunnen elders nog bedoeld zijn.
+        private static void ShareAssets(Material target, Material source, bool deleteReplaced, List<string> warnings)
+        {
+            Document doc = target.Document;
+            var replaced = new List<ElementId>();
+
+            if (IsValid(source.AppearanceAssetId) && target.AppearanceAssetId != source.AppearanceAssetId)
+            {
+                ElementId old = target.AppearanceAssetId;
+                TryCopy("appearance asset", () => target.AppearanceAssetId = source.AppearanceAssetId, warnings);
+                if (target.AppearanceAssetId == source.AppearanceAssetId && IsValid(old)) replaced.Add(old);
+            }
+
+            if (IsValid(source.StructuralAssetId) && target.StructuralAssetId != source.StructuralAssetId)
+            {
+                ElementId old = target.StructuralAssetId;
+                TryCopy("physical asset", () =>
+                    target.SetMaterialAspectByPropertySet(MaterialAspect.Structural, source.StructuralAssetId), warnings);
+                if (target.StructuralAssetId == source.StructuralAssetId && IsValid(old)) replaced.Add(old);
+            }
+
+            if (IsValid(source.ThermalAssetId) && target.ThermalAssetId != source.ThermalAssetId)
+            {
+                ElementId old = target.ThermalAssetId;
+                TryCopy("thermal asset", () =>
+                    target.SetMaterialAspectByPropertySet(MaterialAspect.Thermal, source.ThermalAssetId), warnings);
+                if (target.ThermalAssetId == source.ThermalAssetId && IsValid(old)) replaced.Add(old);
+            }
+
+            if (!deleteReplaced || replaced.Count == 0) return;
+
+            // Alleen verwijderen wat geen enkel materiaal meer gebruikt.
+            var inUse = new HashSet<ElementId>(GetMaterials(doc).SelectMany(m =>
+                new[] { m.AppearanceAssetId, m.StructuralAssetId, m.ThermalAssetId }));
+            foreach (ElementId id in replaced.Where(id => !inUse.Contains(id)))
+            {
+                try
+                {
+                    doc.Delete(id);
+                }
+                catch (Exception ex)
+                {
+                    warnings.Add($"overbodige assetkopie {id.GetValue()} niet verwijderd ({ex.Message})");
+                }
+            }
         }
 
         private static bool IsValid(ElementId id)

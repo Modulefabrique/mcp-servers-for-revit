@@ -144,6 +144,30 @@ public class MaterialOperationsTests : RevitApiTest
     }
 
     [Test]
+    public async Task Create_WithTemplate_SharesAllAssetsWithoutCopies()
+    {
+        Material template = AddMaterialWithAssets("Sjabloon met assets");
+        int assetsBefore = CountPropertySets();
+
+        var input = Naakt("beton", "gewapend", "ihw", "sjabloon");
+        input.Template = template.Name;
+
+        var result = MaterialOperationsUtils.Execute(_doc, new ManageMaterialsRequest
+        {
+            Action = "create",
+            Materials = new List<MaterialInput> { input }
+        });
+
+        var material = FindMaterial("beton_gewapend_ihw_sjabloon");
+        await Assert.That(result.Results[0].Success).IsTrue();
+        await Assert.That(result.Results[0].Message).IsNull();
+        await Assert.That(material.StructuralAssetId).IsEqualTo(template.StructuralAssetId);
+        await Assert.That(material.ThermalAssetId).IsEqualTo(template.ThermalAssetId);
+        await Assert.That(material.MaterialClass).IsEqualTo(template.MaterialClass);
+        await Assert.That(CountPropertySets()).IsEqualTo(assetsBefore);
+    }
+
+    [Test]
     public async Task Create_ExistingName_Fails()
     {
         AddMaterial("beton_gewapend_ihw_bestaat");
@@ -437,12 +461,31 @@ public class MaterialOperationsTests : RevitApiTest
         return id;
     }
 
+    private static Material AddMaterialWithAssets(string name)
+    {
+        using var tx = new Transaction(_doc, "Testmateriaal met assets");
+        tx.Start();
+        var material = (Material)_doc.GetElement(Material.Create(_doc, name));
+        material.MaterialClass = "Beton";
+        var structural = PropertySetElement.Create(_doc, new StructuralAsset(name + " physical", StructuralAssetClass.Concrete));
+        var thermal = PropertySetElement.Create(_doc, new ThermalAsset(name + " thermal", ThermalMaterialType.Solid));
+        material.SetMaterialAspectByPropertySet(MaterialAspect.Structural, structural.Id);
+        material.SetMaterialAspectByPropertySet(MaterialAspect.Thermal, thermal.Id);
+        tx.Commit();
+        return material;
+    }
+
     private static Material FindMaterial(string name)
     {
         return new FilteredElementCollector(_doc)
             .OfClass(typeof(Material))
             .Cast<Material>()
             .FirstOrDefault(m => m.Name == name);
+    }
+
+    private static int CountPropertySets()
+    {
+        return new FilteredElementCollector(_doc).OfClass(typeof(PropertySetElement)).GetElementCount();
     }
 
     private static int CountMaterials()

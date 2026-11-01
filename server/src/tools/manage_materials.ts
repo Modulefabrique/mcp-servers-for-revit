@@ -32,7 +32,7 @@ const materialSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Name or ElementId of an existing material to copy material class, appearance/structural/thermal asset, color and patterns from. Explicit values in the same item win over the template."
+      "Name or ElementId of an existing material to use as template. create: the template is duplicated as a whole (all assets, identity data, graphics), update: material class, color and patterns are copied. In both cases the appearance, physical and thermal assets are shared with the template, never copied. Explicit values in the same item win over the template."
     ),
 });
 
