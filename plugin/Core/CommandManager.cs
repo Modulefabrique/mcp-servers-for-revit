@@ -74,12 +74,25 @@ namespace revit_mcp_plugin.Core
 
         private static Assembly ResolveCommandDependency(object sender, ResolveEventArgs args)
         {
+            // Al geladen door een andere add-in (bv. MF_Utilities door de ModuleFabrique-add-in)? Dan die
+            // gebruiken, zodat er geen tweede exemplaar met andere type-identiteit naast komt.
+            Assembly alreadyLoaded = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a => string.Equals(a.FullName, args.Name, StringComparison.OrdinalIgnoreCase));
+            if (alreadyLoaded != null)
+                return alreadyLoaded;
+
             string dependencyFileName = new AssemblyName(args.Name).Name + ".dll";
 
+            // Eerst de mappen van de command-assembly's, daarna de map van de plugin zelf. Die laatste is
+            // de ModuleFabriqueAddin-map, waar ook MF_Utilities.dll en zijn dependencies staan; die worden
+            // bewust niet naar de Commands-map gekopieerd.
             string[] directoriesToSearch;
             lock (_knownAssemblyDirectoriesLock)
             {
-                directoriesToSearch = _knownAssemblyDirectories.ToArray();
+                directoriesToSearch = _knownAssemblyDirectories
+                    .Concat(new[] { Path.GetDirectoryName(typeof(CommandManager).Assembly.Location) })
+                    .Where(d => !string.IsNullOrEmpty(d))
+                    .ToArray();
             }
 
             foreach (string directory in directoriesToSearch)
