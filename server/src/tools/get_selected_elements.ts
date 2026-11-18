@@ -1,12 +1,20 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerGetSelectedElementsTool(server: McpServer) {
-  server.tool(
-    "get_selected_elements",
-    "Get elements currently selected in Revit. You can limit the number of returned elements.",
-    {
+  defineRevitTool(server, {
+    name: "get_selected_elements",
+    title: "Get selected elements",
+    kind: "read",
+    description:
+      "Get the elements the user currently has selected in Revit. Use this when the user refers to 'the " +
+      "selected elements' or 'this element'; the returned Ids can be passed to get_available_parameters, " +
+      "get_parameters, set_parameters and the other element tools. Returns per element: Id, UniqueId, Name " +
+      "and Category (category name in Revit's UI language); no parameter values, use get_parameters for " +
+      "those. An empty list means nothing is selected: ask the user to select elements in Revit. Changes " +
+      "nothing.",
+    schema: {
       limit: z
         .number()
         .optional()
@@ -14,36 +22,8 @@ export function registerGetSelectedElementsTool(server: McpServer) {
           "Maximum number of elements to return. Omit for no limit (all selected elements are returned)."
         ),
     },
-    async (args, extra) => {
-      const params = {
-        limit: args.limit,
-      };
-
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand("get_selected_elements", params);
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `get selected elements failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+    buildParams: (args) => ({
+      limit: args.limit,
+    }),
+  });
 }

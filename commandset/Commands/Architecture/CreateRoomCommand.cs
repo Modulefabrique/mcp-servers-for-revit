@@ -9,7 +9,7 @@ namespace RevitMCPCommandSet.Commands.Architecture
     /// <summary>
     /// Command to create and place rooms in Revit
     /// </summary>
-    public class CreateRoomCommand : ExternalEventCommandBase
+    public class CreateRoomCommand : RevitCommandBase
     {
         private CreateRoomEventHandler _handler => (CreateRoomEventHandler)Handler;
 
@@ -40,7 +40,7 @@ namespace RevitMCPCommandSet.Commands.Architecture
                 _handler.SetParameters(data);
 
                 // Trigger external event and wait for completion
-                if (RaiseAndWaitForCompletion(15000)) // 15 second timeout
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                 {
                     return _handler.Result;
                 }

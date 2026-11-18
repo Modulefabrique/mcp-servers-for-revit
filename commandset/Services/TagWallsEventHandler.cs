@@ -1,19 +1,16 @@
 using Autodesk.Revit.UI;
 using RevitMCPSDK.API.Interfaces;
+using RevitMCPCommandSet.Utils;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class TagWallsEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class TagWallsEventHandler : WaitableExternalEventHandlerBase
     {
         private UIApplication uiApp;
         private UIDocument uiDoc => uiApp.ActiveUIDocument;
         private Document doc => uiDoc.Document;
         private Autodesk.Revit.ApplicationServices.Application app => uiApp.Application;
 
-        /// <summary>
-        /// Wachtobject voor het event
-        /// </summary>
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         /// <summary>
         /// Resultaatgegevens van de markering
@@ -30,10 +27,9 @@ namespace RevitMCPCommandSet.Services
         {
             _useLeader = useLeader;
             _tagTypeId = tagTypeId;
-            _resetEvent.Reset();
         }
 
-        public void Execute(UIApplication uiapp)
+        protected override void ExecuteCore(UIApplication uiapp)
         {
             uiApp = uiapp;
 
@@ -147,8 +143,8 @@ try
                                 {
                                     createdTags.Add(new
                                     {
-                                        id = tag.Id.IntegerValue.ToString(),
-                                        wallId = wall.Id.IntegerValue.ToString(),
+                                        id = tag.Id.GetValue().ToString(),
+                                        wallId = wall.Id.GetValue().ToString(),
 
                                         wallName = wall.Name,
                                         location = new
@@ -163,12 +159,12 @@ try
                         }
                         catch (Exception ex)
                         {
-                            errors.Add($"Fout bij het taggen van wand {wall.Id.IntegerValue}: {ex.Message}");
+                            errors.Add($"Fout bij het taggen van wand {wall.Id.GetValue()}: {ex.Message}");
                         }
 #endif
                     }
 
-                    tran.Commit();
+                    tran.CommitOrThrow();
 
                     TaggingResults = new
                     {
@@ -188,26 +184,13 @@ try
                     message = $"Er is een fout opgetreden: {ex.Message}"
                 };
             }
-            finally
-            {
-                _resetEvent.Set(); // Informeer de wachtende thread dat de bewerking is voltooid
-            }
         }
 
-        /// <summary>
-        /// Wacht tot het aanmaken is voltooid
-        /// </summary>
-        /// <param name="timeoutMilliseconds">Time-out (in milliseconden)</param>
-        /// <returns>Of de bewerking is voltooid vóór de time-out</returns>
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
         /// <summary>
         /// IExternalEventHandler.GetName implementatie
         /// </summary>
-        public string GetName()
+        public override string GetName()
         {
             return "Wanden taggen";
         }
@@ -221,7 +204,7 @@ try
             // If specific tag type ID was specified, try to use it
             if (!string.IsNullOrEmpty(_tagTypeId))
             {
-                if (int.TryParse(_tagTypeId, out int id))
+                if (long.TryParse(_tagTypeId, out long id))
                 {
                     ElementId elementId = new ElementId(id);
                     Element element = doc.GetElement(elementId);
@@ -260,14 +243,14 @@ try
             // If specific tag type ID was specified, try to use it
             if (!string.IsNullOrEmpty(_tagTypeId))
             {
-                if (int.TryParse(_tagTypeId, out int id))
+                if (long.TryParse(_tagTypeId, out long id))
                 {
                     ElementId elementId = new ElementId(id);
                     Element element = doc.GetElement(elementId);
 
                     if (element != null && element is FamilySymbol symbol &&
-                        (symbol.Category.Id.IntegerValue == (int)BuiltInCategory.OST_WallTags ||
-                         symbol.Category.Id.IntegerValue == (int)BuiltInCategory.OST_MultiCategoryTags))
+                        (symbol.Category.Id.GetIntValue() == (int)BuiltInCategory.OST_WallTags ||
+                         symbol.Category.Id.GetIntValue() == (int)BuiltInCategory.OST_MultiCategoryTags))
                     {
                         return symbol;
                     }
@@ -279,7 +262,7 @@ try
             FamilySymbol wallTagType = tagCollector.OfClass(typeof(FamilySymbol))
                                                   .WhereElementIsElementType()
                                                   .Where(e => e.Category != null &&
-                                                         e.Category.Id.IntegerValue == (int)BuiltInCategory.OST_WallTags)
+                                                         e.Category.Id.GetIntValue() == (int)BuiltInCategory.OST_WallTags)
                                                   .Cast<FamilySymbol>()
                                                   .FirstOrDefault();
 
@@ -289,7 +272,7 @@ try
                 wallTagType = tagCollector.OfClass(typeof(FamilySymbol))
                                          .WhereElementIsElementType()
                                          .Where(e => e.Category != null &&
-                                                e.Category.Id.IntegerValue == (int)BuiltInCategory.OST_MultiCategoryTags)
+                                                e.Category.Id.GetIntValue() == (int)BuiltInCategory.OST_MultiCategoryTags)
                                          .Cast<FamilySymbol>()
                                          .FirstOrDefault();
             }

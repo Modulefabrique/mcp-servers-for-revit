@@ -11,7 +11,7 @@ namespace RevitMCPCommandSet.Commands
     /// parameternamen kunnen per element opgegeven worden, of eenmalig (parameterNames) voor alle
     /// elementen zonder eigen lijst.
     /// </summary>
-    public class GetParametersCommand : ExternalEventCommandBase
+    public class GetParametersCommand : RevitCommandBase
     {
         private GetParametersEventHandler _handler => (GetParametersEventHandler)Handler;
 
@@ -53,7 +53,7 @@ namespace RevitMCPCommandSet.Commands
                 _handler.Elements = elements;
 
                 // Extern event activeren en wachten op voltooiing
-                if (RaiseAndWaitForCompletion(60000)) // 60 seconden time-out
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Read))
                 {
                     if (_handler.ErrorMessage != null)
                         throw new Exception(_handler.ErrorMessage);

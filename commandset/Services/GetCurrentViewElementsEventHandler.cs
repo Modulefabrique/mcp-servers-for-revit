@@ -4,7 +4,7 @@ using RevitMCPSDK.API.Interfaces;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class GetCurrentViewElementsEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class GetCurrentViewElementsEventHandler : WaitableExternalEventHandlerBase
     {
         // Standaardlijst met modelcategorieën
         private readonly List<string> _defaultModelCategories = new List<string>
@@ -42,40 +42,31 @@ namespace RevitMCPCommandSet.Services
         private List<string> _modelCategoryList;
         private List<string> _annotationCategoryList;
         private bool _includeHidden;
-        // Geen waarde = geen limiet: alle overeenkomende elementen worden geretourneerd
+        // Paginagrootte; zonder waarde geldt PagedAIResult.DefaultLimit (zie PagedAIResult.ResolveLimit)
         private int? _limit;
+        private int _offset;
 
         // Uitvoeringsresultaat
         public ViewElementsResult ResultInfo { get; private set; }
 
-        // Object voor statussynchronisatie
-        public bool TaskCompleted { get; private set; }
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         // Stel de queryparameters in
-        public void SetQueryParameters(List<string> modelCategoryList, List<string> annotationCategoryList, bool includeHidden, int? limit)
+        public void SetQueryParameters(List<string> modelCategoryList, List<string> annotationCategoryList, bool includeHidden, int? limit, int offset = 0)
         {
             _modelCategoryList = modelCategoryList;
             _annotationCategoryList = annotationCategoryList;
             _includeHidden = includeHidden;
             _limit = limit;
-            TaskCompleted = false;
+            _offset = Math.Max(0, offset);
             ResultInfo = null;
             ErrorMessage = null;
-            _resetEvent.Reset();
         }
 
         // Foutmelding bij mislukken (wordt teruggegeven in de response i.p.v. een dialoog te tonen)
         public string ErrorMessage { get; private set; }
 
-        // Implementatie van de IWaitableExternalEventHandler-interface.
-        // Geen Reset() hier: dat gebeurt in SetQueryParameters, vóór het raisen van het event.
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
-        public void Execute(UIApplication app)
+        protected override void ExecuteCore(UIApplication app)
         {
             try
             {
@@ -133,11 +124,11 @@ namespace RevitMCPCommandSet.Services
                     elements = elements.Where(e => !e.IsHidden(activeView)).ToList();
                 }
 
-                // Beperk het aantal geretourneerde resultaten, alleen als er expliciet een limiet is opgegeven
-                if (_limit.HasValue && _limit.Value > 0 && elements.Count > _limit.Value)
-                {
-                    elements = elements.Take(_limit.Value).ToList();
-                }
+                // Paging: standaardlimiet plus totaal en truncated in het antwoord
+                int totalMatched = elements.Count;
+                int limit = PagedAIResult<object>.ResolveLimit(_limit);
+                elements = elements.Skip(_offset).Take(limit).ToList();
+                bool truncated = _offset + elements.Count < totalMatched;
 
                 // Bouw het resultaat op
                 var elementInfos = elements.Select(e => new ElementInfo
@@ -145,7 +136,7 @@ namespace RevitMCPCommandSet.Services
 #if REVIT2024_OR_GREATER
                     Id = e.Id.Value,
 #else
-                    Id = e.Id.IntegerValue,
+                    Id = e.Id.GetValue(),
 #endif
                     UniqueId = e.UniqueId,
                     Name = e.Name,
@@ -158,22 +149,22 @@ namespace RevitMCPCommandSet.Services
 #if REVIT2024_OR_GREATER
                     ViewId = activeView.Id.Value,
 #else
-                    ViewId = activeView.Id.IntegerValue,
+                    ViewId = activeView.Id.GetValue(),
 #endif
                     ViewName = activeView.Name,
                     TotalElementsInView = new FilteredElementCollector(doc, activeView.Id).GetElementCount(),
                     FilteredElementCount = elementInfos.Count,
-                    Elements = elementInfos
+                    Elements = elementInfos,
+                    TotalMatched = totalMatched,
+                    Offset = _offset,
+                    Returned = elementInfos.Count,
+                    Truncated = truncated,
+                    NextOffset = truncated ? _offset + elementInfos.Count : (int?)null
                 };
             }
             catch (Exception ex)
             {
                 ErrorMessage = "Ophalen van weergave-elementen mislukt: " + ex.Message;
-            }
-            finally
-            {
-                TaskCompleted = true;
-                _resetEvent.Set();
             }
         }
 
@@ -185,23 +176,26 @@ namespace RevitMCPCommandSet.Services
 #if REVIT2024_OR_GREATER
             properties.Add("ElementId", element.Id.Value.ToString());
 #else
-            properties.Add("ElementId", element.Id.IntegerValue.ToString());
+            properties.Add("ElementId", element.Id.GetValue().ToString());
 #endif
             if (element.Location != null)
             {
+                // Coördinaten en lengtes in mm, cultuuronafhankelijk geformatteerd (punt als decimaalteken)
                 if (element.Location is LocationPoint locationPoint)
                 {
                     var point = locationPoint.Point;
-                    properties.Add("LocationX", point.X.ToString("F2"));
-                    properties.Add("LocationY", point.Y.ToString("F2"));
-                    properties.Add("LocationZ", point.Z.ToString("F2"));
+                    properties.Add("LocationX", Mm(point.X));
+                    properties.Add("LocationY", Mm(point.Y));
+                    properties.Add("LocationZ", Mm(point.Z));
                 }
                 else if (element.Location is LocationCurve locationCurve)
                 {
                     var curve = locationCurve.Curve;
-                    properties.Add("Start", $"{curve.GetEndPoint(0).X:F2}, {curve.GetEndPoint(0).Y:F2}, {curve.GetEndPoint(0).Z:F2}");
-                    properties.Add("End", $"{curve.GetEndPoint(1).X:F2}, {curve.GetEndPoint(1).Y:F2}, {curve.GetEndPoint(1).Z:F2}");
-                    properties.Add("Length", curve.Length.ToString("F2"));
+                    XYZ start = curve.GetEndPoint(0);
+                    XYZ end = curve.GetEndPoint(1);
+                    properties.Add("Start", $"{Mm(start.X)}, {Mm(start.Y)}, {Mm(start.Z)}");
+                    properties.Add("End", $"{Mm(end.X)}, {Mm(end.Y)}, {Mm(end.Z)}");
+                    properties.Add("Length", Mm(curve.Length));
                 }
             }
 
@@ -215,14 +209,14 @@ namespace RevitMCPCommandSet.Services
                     if (param.StorageType == StorageType.String)
                         properties.Add(paramName, param.AsString() ?? "");
                     else if (param.StorageType == StorageType.Double)
-                        properties.Add(paramName, param.AsDouble().ToString("F2"));
+                        properties.Add(paramName, AIElementFilterEventHandler.FormatDimensionValue(param));
                     else if (param.StorageType == StorageType.Integer)
                         properties.Add(paramName, param.AsInteger().ToString());
                     else if (param.StorageType == StorageType.ElementId)
 #if REVIT2024_OR_GREATER
                         properties.Add(paramName, param.AsElementId().Value.ToString());
 #else
-                        properties.Add(paramName, param.AsElementId().IntegerValue.ToString());
+                        properties.Add(paramName, param.AsElementId().GetValue().ToString());
 #endif
                 }
             }
@@ -230,7 +224,13 @@ namespace RevitMCPCommandSet.Services
             return properties;
         }
 
-        public string GetName()
+        // Interne voet naar mm, als tekst met punt als decimaalteken
+        private static string Mm(double feet)
+        {
+            return Math.Round(feet * 304.8, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        public override string GetName()
         {
             return "Elementen in huidige weergave ophalen";
         }

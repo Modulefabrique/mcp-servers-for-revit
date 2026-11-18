@@ -1,37 +1,15 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerGetCurrentViewInfoTool(server: McpServer) {
-  server.tool(
-    "get_current_view_info",
-    "Verkrijgt gedetailleerde informatie over het huidige actieve aanzicht in Revit, inclusief eigenschappen zoals aanzichttype, naam en schaal.",
-    {},
-    async (args, extra) => {
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand("get_current_view_info", {});
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `get current view info failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+  defineRevitTool(server, {
+    name: "get_current_view_info",
+    kind: "read",
+    description:
+      "Get information about the active view in Revit: id, unique id, name, view type, whether it is a " +
+      "view template, scale and detail level. Call this first in a session to check that Revit is connected " +
+      "and to learn which view the user is working in; several tools (get_current_view_elements, " +
+      "tagging, dimensions, colouring) act on this active view.",
+    schema: {},
+  });
 }

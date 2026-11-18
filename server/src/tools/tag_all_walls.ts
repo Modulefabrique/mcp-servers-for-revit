@@ -1,49 +1,33 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerTagAllWallsTool(server: McpServer) {
-  server.tool(
-    "tag_all_walls",
-    "Create tags for all walls in the current active view. Tags will be placed at the middle point of each wall.",
-    {
+  defineRevitTool(server, {
+    name: "tag_all_walls",
+    title: "Tag walls",
+    kind: "write",
+    method: "tag_walls",
+    description:
+      "Tag every wall visible in the ACTIVE view with a wall tag at the midpoint of its location line, in " +
+      "one transaction. Existing tags are not checked: calling it again, or on a view that already has wall " +
+      "tags, creates duplicate tags. Tag type: tagTypeId if it is a wall tag or multi-category tag type id " +
+      "(from get_available_family_types with categoryList ['OST_WallTags']; never invent ids), otherwise the " +
+      "first wall tag type, otherwise the first multi-category tag type. The active view must allow tags " +
+      "(e.g. a floor plan); walls that cannot be tagged are listed in errors. Returns success, totalWalls, " +
+      "taggedWalls, tags (id, wallId, wallName, location in feet - Revit internal units) and errors.",
+    schema: {
       useLeader: z
         .boolean()
         .optional()
         .default(false)
-        .describe("Whether to use a leader line when creating the tags"),
+        .describe("Give the created tags a leader line"),
       tagTypeId: z
         .string()
         .optional()
-        .describe("The ID of the specific wall tag family type to use. If not provided, the default wall tag type will be used"),
+        .describe(
+          "Element id of the wall tag type to use, as a string. If omitted or invalid, the first wall tag type is used"
+        ),
     },
-    async (args, extra) => {
-      const params = args;
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand("tag_walls", params);
-        });
-        
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Wall tagging failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+  });
 }

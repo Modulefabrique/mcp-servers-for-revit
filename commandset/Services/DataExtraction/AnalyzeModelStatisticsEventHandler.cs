@@ -5,27 +5,19 @@ using RevitMCPSDK.API.Interfaces;
 
 namespace RevitMCPCommandSet.Services.DataExtraction
 {
-    public class AnalyzeModelStatisticsEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class AnalyzeModelStatisticsEventHandler : WaitableExternalEventHandlerBase
     {
         private bool _includeDetailedTypes;
 
         public AnalyzeModelStatisticsResult ResultInfo { get; private set; }
-        public bool TaskCompleted { get; private set; }
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         public void SetParameters(bool includeDetailedTypes = true)
         {
             _includeDetailedTypes = includeDetailedTypes;
-            TaskCompleted = false;
-            _resetEvent.Reset();
         }
 
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
-        public void Execute(UIApplication app)
+        protected override void ExecuteCore(UIApplication app)
         {
             try
             {
@@ -163,14 +155,9 @@ namespace RevitMCPCommandSet.Services.DataExtraction
                     Message = $"Error analyzing model statistics: {ex.Message}"
                 };
             }
-            finally
-            {
-                TaskCompleted = true;
-                _resetEvent.Set();
-            }
         }
 
-        public string GetName()
+        public override string GetName()
         {
             return "Analyze Model Statistics";
         }

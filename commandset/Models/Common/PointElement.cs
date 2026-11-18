@@ -22,7 +22,7 @@ public class PointElement
     ///     Type-Id
     /// </summary>
     [JsonProperty("typeId")]
-    public int TypeId { get; set; } = -1;
+    public long TypeId { get; set; } = -1;
 
     /// <summary>
     ///     Coördinaat van het plaatsingspunt
@@ -70,7 +70,7 @@ public class PointElement
     ///     Expliciete ElementId van de hostwand, -1 betekent automatisch detecteren
     /// </summary>
     [JsonProperty("hostWallId")]
-    public int HostWallId { get; set; } = -1;
+    public long HostWallId { get; set; } = -1;
 
     /// <summary>
     ///     Of de oriëntatie van deur/raam moet worden omgedraaid

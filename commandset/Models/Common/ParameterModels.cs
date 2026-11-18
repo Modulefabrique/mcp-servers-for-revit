@@ -53,5 +53,11 @@ namespace RevitMCPCommandSet.Models.Common
         public string ParameterName { get; set; }
         public bool Success { get; set; }
         public string Message { get; set; }
+
+        /// <summary>Waarde vóór de wijziging, zoals in het Properties-palet (null als onbekend).</summary>
+        public string OldValue { get; set; }
+
+        /// <summary>Waarde na de wijziging (bij dryRun: de waarde die het zou worden).</summary>
+        public string NewValue { get; set; }
     }
 }

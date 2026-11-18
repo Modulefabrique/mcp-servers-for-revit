@@ -6,7 +6,7 @@ using RevitMCPCommandSet.Services;
 
 namespace RevitMCPCommandSet.Commands
 {
-    public class CreatePointElementCommand :    ExternalEventCommandBase
+    public class CreatePointElementCommand : RevitCommandBase
     {
         private CreatePointElementEventHandler _handler => (CreatePointElementEventHandler)Handler;
 
@@ -38,7 +38,7 @@ namespace RevitMCPCommandSet.Commands
                 _handler.SetParameters(data);
 
                 // Extern event activeren en wachten op voltooiing
-                if (RaiseAndWaitForCompletion(10000))
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                 {
                     return _handler.Result;
                 }

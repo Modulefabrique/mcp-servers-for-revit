@@ -73,7 +73,7 @@ namespace RevitMCPCommandSet.Models.Common
         /// Lijst met Id's van de te bewerken elementen
         /// </summary>
         [JsonProperty("elementIds")]
-        public List<int> ElementIds = new List<int>();
+        public List<long> ElementIds = new List<long>();
 
         /// <summary>
         /// De uit te voeren actie, bevat de string-waarde van de ElementOperationType-enum
@@ -92,5 +92,13 @@ namespace RevitMCPCommandSet.Models.Common
         /// </summary>
         [JsonProperty("colorValue")]
         public int[] ColorValue { get; set; } = new int[] { 255, 0, 0 }; // Standaard rood
+
+        /// <summary>
+        /// Alleen voor de actie Delete: true = alleen een voorbeeld tonen van wat er verwijderd zou worden.
+        /// Zonder waarde geldt true (veilig); verwijderen gebeurt pas met expliciet false. Andere acties
+        /// negeren deze instelling.
+        /// </summary>
+        [JsonProperty("dryRun")]
+        public bool? DryRun { get; set; } = null;
     }
 }

@@ -154,7 +154,7 @@ public class ScheduleFieldInfo
     ///     Parameter ID for the field
     /// </summary>
     [JsonProperty("parameterId")]
-    public int ParameterId { get; set; }
+    public long ParameterId { get; set; }
 
     /// <summary>
     ///     Parameter name for the field

@@ -1,119 +1,104 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerCreateGridTool(server: McpServer) {
-  server.tool(
-    "create_grid",
-    "Create a grid system in Revit with smart spacing generation. Supports both X-axis (vertical) and Y-axis (horizontal) grids with customizable naming styles (alphabetic A,B,C or numeric 1,2,3). All units are in millimeters (mm).",
-    {
+  defineRevitTool(server, {
+    name: "create_grid",
+    title: "Create grid system",
+    kind: "write",
+    description:
+      "Create a rectangular system of grid lines in one transaction. All values are in millimeters, in " +
+      "model coordinates relative to Revit's internal origin. 'X-axis' grids are xCount vertical lines " +
+      "(parallel to the Y axis) at X = xStartPosition + i * xSpacing, running from yExtentMin to " +
+      "yExtentMax; 'Y-axis' grids are yCount horizontal lines (parallel to the X axis) at Y = " +
+      "yStartPosition + i * ySpacing, running from xExtentMin to xExtentMax. Labels: 'alphabetic' starts " +
+      "at the first letter of the start label (A, B, ... Z, AA, AB, ...), 'numeric' counts up from the " +
+      "start label's number (1 if it is not a number). A label that is already used by an existing grid " +
+      "(case-insensitive) gets a number appended (e.g. 'A1') and is reported with wasRenamed=true. Calling " +
+      "the tool again creates a second set of grids, so check for existing grids first (e.g. ai_element_filter " +
+      "with filterCategory 'OST_Grids'). Returns Success, Message and Response = per grid elementId, name, " +
+      "originalName, wasRenamed, axis ('X' or 'Y') and position (mm).",
+    schema: {
       xCount: z
         .number()
         .int()
         .positive()
-        .describe("Number of grid lines along X-axis (vertical grids)"),
+        .describe("Number of X-axis grid lines (vertical lines, parallel to the Y axis)"),
       xSpacing: z
         .number()
         .positive()
-        .describe("Spacing between X-axis grid lines in millimeters"),
+        .describe("Distance between consecutive X-axis grid lines in mm"),
       xStartLabel: z
         .string()
         .default("A")
-        .describe("Starting label for X-axis grids (e.g., 'A' or '1')"),
+        .describe("Label of the first X-axis grid (e.g. 'A' or '1')"),
       xNamingStyle: z
         .enum(["alphabetic", "numeric"])
         .default("alphabetic")
-        .describe("Naming style for X-axis: 'alphabetic' (A,B,C...) or 'numeric' (1,2,3...)"),
+        .describe("Naming style for X-axis grids: 'alphabetic' (A, B, C...) or 'numeric' (1, 2, 3...)"),
       yCount: z
         .number()
         .int()
         .positive()
-        .describe("Number of grid lines along Y-axis (horizontal grids)"),
+        .describe("Number of Y-axis grid lines (horizontal lines, parallel to the X axis)"),
       ySpacing: z
         .number()
         .positive()
-        .describe("Spacing between Y-axis grid lines in millimeters"),
+        .describe("Distance between consecutive Y-axis grid lines in mm"),
       yStartLabel: z
         .string()
         .default("1")
-        .describe("Starting label for Y-axis grids (e.g., '1' or 'A')"),
+        .describe("Label of the first Y-axis grid (e.g. '1' or 'A')"),
       yNamingStyle: z
         .enum(["alphabetic", "numeric"])
         .default("numeric")
-        .describe("Naming style for Y-axis: 'alphabetic' (A,B,C...) or 'numeric' (1,2,3...)"),
+        .describe("Naming style for Y-axis grids: 'alphabetic' (A, B, C...) or 'numeric' (1, 2, 3...)"),
       xExtentMin: z
         .number()
         .default(0)
-        .describe("Minimum extent along X-axis in mm (where Y-axis grids start)"),
+        .describe("X coordinate in mm where the Y-axis (horizontal) grid lines start"),
       xExtentMax: z
         .number()
         .default(50000)
-        .describe("Maximum extent along X-axis in mm (where Y-axis grids end)"),
+        .describe("X coordinate in mm where the Y-axis (horizontal) grid lines end"),
       yExtentMin: z
         .number()
         .default(0)
-        .describe("Minimum extent along Y-axis in mm (where X-axis grids start)"),
+        .describe("Y coordinate in mm where the X-axis (vertical) grid lines start"),
       yExtentMax: z
         .number()
         .default(50000)
-        .describe("Maximum extent along Y-axis in mm (where X-axis grids end)"),
+        .describe("Y coordinate in mm where the X-axis (vertical) grid lines end"),
       elevation: z
         .number()
         .default(0)
-        .describe("Elevation for grid lines in mm (Z-coordinate)"),
+        .describe("Z coordinate in mm of the grid lines"),
       xStartPosition: z
         .number()
         .default(0)
-        .describe("Starting position for first X-axis grid in mm"),
+        .describe("X coordinate in mm of the first X-axis grid line"),
       yStartPosition: z
         .number()
         .default(0)
-        .describe("Starting position for first Y-axis grid in mm"),
+        .describe("Y coordinate in mm of the first Y-axis grid line"),
     },
-    async (args, extra) => {
-      const params = {
-        xCount: args.xCount,
-        xSpacing: args.xSpacing,
-        xStartLabel: args.xStartLabel,
-        xNamingStyle: args.xNamingStyle,
-        yCount: args.yCount,
-        ySpacing: args.ySpacing,
-        yStartLabel: args.yStartLabel,
-        yNamingStyle: args.yNamingStyle,
-        xExtentMin: args.xExtentMin,
-        xExtentMax: args.xExtentMax,
-        yExtentMin: args.yExtentMin,
-        yExtentMax: args.yExtentMax,
-        elevation: args.elevation,
-        xStartPosition: args.xStartPosition,
-        yStartPosition: args.yStartPosition,
-      };
-
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand("create_grid", params);
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Create grid failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+    buildParams: (args) => ({
+      xCount: args.xCount,
+      xSpacing: args.xSpacing,
+      xStartLabel: args.xStartLabel,
+      xNamingStyle: args.xNamingStyle,
+      yCount: args.yCount,
+      ySpacing: args.ySpacing,
+      yStartLabel: args.yStartLabel,
+      yNamingStyle: args.yNamingStyle,
+      xExtentMin: args.xExtentMin,
+      xExtentMax: args.xExtentMax,
+      yExtentMin: args.yExtentMin,
+      yExtentMax: args.yExtentMax,
+      elevation: args.elevation,
+      xStartPosition: args.xStartPosition,
+      yStartPosition: args.yStartPosition,
+    }),
+  });
 }

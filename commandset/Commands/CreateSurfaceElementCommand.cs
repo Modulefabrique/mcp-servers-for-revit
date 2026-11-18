@@ -6,7 +6,7 @@ using RevitMCPCommandSet.Services;
 
 namespace RevitMCPCommandSet.Commands
 {
-    public class CreateSurfaceElementCommand : ExternalEventCommandBase
+    public class CreateSurfaceElementCommand : RevitCommandBase
     {
         private CreateSurfaceElementEventHandler _handler => (CreateSurfaceElementEventHandler)Handler;
 
@@ -38,7 +38,7 @@ namespace RevitMCPCommandSet.Commands
                 _handler.SetParameters(data);
 
                 // Extern event activeren en wachten op voltooiing
-                if (RaiseAndWaitForCompletion(10000))
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                 {
                     return _handler.Result;
                 }

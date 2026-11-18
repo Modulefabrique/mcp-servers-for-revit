@@ -11,7 +11,7 @@ namespace RevitMCPCommandSet.Commands
     /// parameters). Gebruikt MF_Utilities.ParameterHelper (Modulefabrique's eigen parameter-hulpklasse,
     /// zie plugin/README-architectuur) voor de daadwerkelijke Revit API-aanroepen.
     /// </summary>
-    public class SetParametersCommand : ExternalEventCommandBase
+    public class SetParametersCommand : RevitCommandBase
     {
         private SetParametersEventHandler _handler => (SetParametersEventHandler)Handler;
 
@@ -35,9 +35,11 @@ namespace RevitMCPCommandSet.Commands
 
                 _handler.ResetCompletion();
                 _handler.Elements = elements;
+                // Standaard geen voorbeeld: set_parameters voert de wijziging direct uit
+                _handler.DryRun = parameters?["dryRun"]?.Value<bool?>() ?? false;
 
                 // Extern event activeren en wachten op voltooiing
-                if (RaiseAndWaitForCompletion(60000)) // 60 seconden time-out
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                 {
                     if (_handler.ErrorMessage != null)
                         throw new Exception(_handler.ErrorMessage);

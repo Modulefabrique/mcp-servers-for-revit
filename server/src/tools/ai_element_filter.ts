@@ -1,112 +1,104 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
+
+// Punt in mm; de plugin verwacht { x, y, z } (JZPoint)
+const pointMm = z.object({
+  x: z.number().describe("X coordinate in mm"),
+  y: z.number().describe("Y coordinate in mm"),
+  z: z.number().describe("Z coordinate in mm"),
+});
 
 export function registerAIElementFilterTool(server: McpServer) {
-  server.tool(
-    "ai_element_filter",
-    "An intelligent Revit element querying tool designed specifically for AI assistants to retrieve element information from Revit projects. This tool allows the AI to request elements matching specific criteria (such as category, type, visibility, or spatial location) and then perform further analysis on the returned data to answer user queries about Revit model elements. By default only lightweight base info is returned per element (Id, Name, FamilyName, Category, BuiltInCategory). Omit includeDetails unless the question needs geometry, level or dimension data - extended details make the response much larger. Example 1 (default, no details): When a user asks 'Which door types are used in the project?' or 'How many doors are there?', call this tool with {\"filterCategory\": \"OST_Doors\", \"includeInstances\": true} and group/count the results by Name/FamilyName. Example 2 (details needed): When a user asks 'Find all walls taller than 5m in the project', 1) call this tool with {\"filterCategory\": \"OST_Walls\", \"includeInstances\": true, \"includeDetails\": true}, 2) receive extended information (level, bounding box, thickness/height) about all wall instances, 3) filter walls with height > 5000mm, 4) present the filtered results to the user with relevant details.",
-    {
-      data: z.object({
-        filterCategory: z
-          .string()
-          .optional()
-          .describe("Enumeration of built-in element categories in Revit used for filtering and identifying specific element types (e.g., OST_Walls, OST_Floors, OST_GenericModel). Note that furniture elements may be classified as either OST_Furniture or OST_GenericModel categories, requiring flexible selection approaches"),
-        filterElementType: z
-          .string()
-          .optional()
-          .describe("The Revit element type name used for filtering specific elements by their class or type (e.g., 'Wall', 'Floor', 'Autodesk.Revit.DB.Wall'). Gets or sets the name of the Revit element type to be filtered."),
-        filterFamilySymbolId: z
-          .number()
-          .optional()
-          .describe("The ElementId of a specific FamilySymbol (type) in Revit used for filtering elements by their type (e.g., '123456', '789012'). Gets or sets the ElementId of the FamilySymbol to be used as a filter criterion. Use '-1' if no specific FamilySymbol filtering is needed."),
-        includeTypes: z
-          .boolean()
-          .default(false)
-          .describe("Determines whether to include element types (such as wall types, door types, etc.) in the selection results. When set to true, element types will be included; when false, they will be excluded."),
-        includeInstances: z
-          .boolean()
-          .default(true)
-          .describe("Determines whether to include element instances (such as placed walls, doors, etc.) in the selection results. When set to true, element instances will be included; when false, they will be excluded."),
-        filterVisibleInCurrentView: z
-          .boolean()
-          .optional()
-          .describe("Determines whether to only return elements that are visible in the current view. When set to true, only elements visible in the current view will be returned. Note: This filter only applies to element instances, not type elements."),
-        boundingBoxMin: z
-          .object({
-            p0: z.object({
-              x: z.number().describe("X coordinate of start point"),
-              y: z.number().describe("Y coordinate of start point"),
-              z: z.number().describe("Z coordinate of start point"),
-            }),
-            p1: z.object({
-              x: z.number().describe("X coordinate of end point"),
-              y: z.number().describe("Y coordinate of end point"),
-              z: z.number().describe("Z coordinate of end point"),
-            }),
-          })
-          .optional()
-          .describe("The minimum point coordinates (in mm) for spatial bounding box filtering. When set along with boundingBoxMax, only elements that intersect with this bounding box will be returned. Set to null to disable this filter."),
-        boundingBoxMax: z
-          .object({
-            p0: z.object({
-              x: z.number().describe("X coordinate of start point"),
-              y: z.number().describe("Y coordinate of start point"),
-              z: z.number().describe("Z coordinate of start point"),
-            }),
-            p1: z.object({
-              x: z.number().describe("X coordinate of end point"),
-              y: z.number().describe("Y coordinate of end point"),
-              z: z.number().describe("Z coordinate of end point"),
-            }),
-          })
-          .optional()
-          .describe("The maximum point coordinates (in mm) for spatial bounding box filtering. When set along with boundingBoxMin, only elements that intersect with this bounding box will be returned. Set to null to disable this filter."),
+  defineRevitTool(server, {
+    name: "ai_element_filter",
+    title: "Find elements in the model",
+    kind: "read",
+    description:
+      "The main tool to find elements (and element types) in the whole Revit model and get their ids " +
+      "for follow-up tools (get_parameters, set_parameters, operate_element, delete_element). Filter by " +
+      "category (filterCategory, a BuiltInCategory name like 'OST_Walls'), by API class " +
+      "(filterElementType, e.g. 'Wall'), by family type (filterFamilySymbolId), by visibility in the " +
+      "active view and/or by a spatial bounding box; at least one of category, element type or family " +
+      "type is required. Furniture may be in OST_Furniture or OST_GenericModel. " +
+      "By default only lightweight base info is returned per element (Id, Name, FamilyName, Category, " +
+      "BuiltInCategory); set includeDetails only when the question needs geometry, level or dimension " +
+      "data, it makes the response much larger. " +
+      "UNITS in the response: lengths, coordinates, elevations and bounding boxes in mm; room/area Area " +
+      "in m2 and Volume in m3; dimension parameters as text in mm (length), m2, m3 or degrees (angle), " +
+      "always with a dot as decimal separator. " +
+      "PAGING: at most maxElements results per call (default 100, max 1000). The response always " +
+      "contains totalMatched, returned, truncated and nextOffset; if truncated is true there are more " +
+      "matches - call again with the same filter and offset=nextOffset, or tell the user how many there " +
+      "are in total. For counting, totalMatched is enough (no need to fetch every page). " +
+      "Example: 'Which door types are used?' -> {\"filterCategory\": \"OST_Doors\", \"includeTypes\": true, " +
+      "\"includeInstances\": false, \"includeInstanceCount\": true} and keep types with InstanceCount > 0. " +
+      "Example: 'Walls taller than 5 m' -> {\"filterCategory\": \"OST_Walls\", \"includeDetails\": true}, " +
+      "then filter on height > 5000 mm. Changes nothing.",
+    schema: {
+      data: z
+        .object({
+          filterCategory: z
+            .string()
+            .optional()
+            .describe("BuiltInCategory name to filter on, e.g. OST_Walls, OST_Floors, OST_Doors, OST_GenericModel"),
+          filterElementType: z
+            .string()
+            .optional()
+            .describe("Revit API class name to filter on, e.g. 'Wall', 'Floor' or 'Autodesk.Revit.DB.Wall'"),
+          filterFamilySymbolId: z
+            .number()
+            .optional()
+            .describe("ElementId of a family type (FamilySymbol): only instances of that type. Omit or -1 for no type filter."),
+          includeTypes: z
+            .boolean()
+            .default(false)
+            .describe("Include element types (wall types, door types, ...) in the results"),
+          includeInstances: z
+            .boolean()
+            .default(true)
+            .describe("Include placed element instances (walls, doors, ...) in the results"),
+          filterVisibleInCurrentView: z
+            .boolean()
+            .optional()
+            .describe("Only return instances visible in the active view (does not apply to types)"),
+          boundingBoxMin: pointMm
+            .optional()
+            .describe("Minimum corner (mm) of a spatial filter box; must be set together with boundingBoxMax. Only elements intersecting the box are returned."),
+          boundingBoxMax: pointMm
+            .optional()
+            .describe("Maximum corner (mm) of a spatial filter box; must be set together with boundingBoxMin."),
           maxElements: z
-          .number()
-          .optional()
-          .describe("The maximum number of elements to find in a single tool invocation. Omit for no limit (all matching elements are returned) — advisable to set a limit for large models to avoid performance issues. make sure to set a reasonable limit to get all the elements you need, as the tool will return only up to this number of elements."),
-        includeDetails: z
-          .boolean()
-          .optional()
-          .describe("When true, returns extended information per element depending on its kind: level, bounding box (mm), thickness/height, type dimension parameters, room area/volume, view properties, annotation text/dimension values, group/link info. Defaults to false: only Id, Name, FamilyName, Category and BuiltInCategory are returned, which keeps the response small. Only request details when the question actually needs them. FamilyName is omitted when the element itself is a family (its Name already is the family name)."),
-        includeInstanceCount: z
-          .boolean()
-          .optional()
-          .describe("Only applies when includeTypes is true. When true, every returned element type gets an InstanceCount: the number of placed instances of that type in the whole project (0 = unused type). The count ignores filterVisibleInCurrentView and bounding box filters. Use this with {\"includeTypes\": true, \"includeInstances\": false} to find which types are actually used (InstanceCount > 0) without fetching every instance, e.g. before running follow-up operations only on used types."),
-      })
-        .describe("Configuration parameters for the Revit element filter tool. These settings determine which elements will be selected from the Revit project based on various filtering criteria. Multiple filters can be combined to achieve precise element selection. All spatial coordinates should be provided in millimeters."),
+            .number()
+            .int()
+            .optional()
+            .describe("Page size: maximum number of elements to return (default 100, max 1000)"),
+          offset: z
+            .number()
+            .int()
+            .optional()
+            .describe("Number of matching elements to skip; for the next page use nextOffset from the previous response (default 0)"),
+          includeDetails: z
+            .boolean()
+            .optional()
+            .describe(
+              "When true, returns extended information per element depending on its kind: level, bounding " +
+                "box, thickness/height, type dimension parameters, room area/volume, view properties, " +
+                "annotation text/dimension values, group/link info. Defaults to false: only Id, Name, " +
+                "FamilyName, Category and BuiltInCategory, which keeps the response small. FamilyName is " +
+                "omitted when the element itself is a family."
+            ),
+          includeInstanceCount: z
+            .boolean()
+            .optional()
+            .describe(
+              "Only with includeTypes: every returned type gets InstanceCount, the number of placed " +
+                "instances of that type in the whole project (0 = unused). Ignores the visibility and " +
+                "bounding box filters. Use with {\"includeTypes\": true, \"includeInstances\": false} to find " +
+                "the types that are actually used without fetching every instance."
+            ),
+        })
+        .describe("Filter settings; multiple filters are combined (AND). Coordinates in mm."),
     },
-    async (args, extra) => {
-      const params = args;
-
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand(
-            "ai_element_filter",
-            params
-          );
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Get element information failed: ${error instanceof Error ? error.message : String(error)
-                }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+  });
 }

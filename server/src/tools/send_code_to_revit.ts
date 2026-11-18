@@ -1,68 +1,55 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 const transactionModeSchema = z
   .enum(["auto", "none"])
   .default("auto")
   .describe(
-    "How the snippet should interact with Revit transactions. Use 'auto' to wrap the snippet in a transaction, or 'none' when the called code manages its own transactions."
+    "'auto' (default): the snippet runs inside one transaction that is committed when it succeeds and rolled " +
+      "back when it throws; do not start your own Transaction in this mode. 'none': no transaction is opened, " +
+      "so the snippet must start and commit its own Transaction to change the model."
   );
 
 export function registerSendCodeToRevitTool(server: McpServer) {
-  server.tool(
-    "send_code_to_revit",
-    "Send C# code to Revit for execution. The code will be inserted into a template with access to the Revit Document and parameters. Your code should be written to work within the Execute method of the template.",
-    {
+  defineRevitTool(server, {
+    name: "send_code_to_revit",
+    title: "Run C# code in Revit",
+    kind: "destructive",
+    description:
+      "Compile and run a C# snippet inside Revit. A last resort for operations that no dedicated tool " +
+      "covers: prefer the dedicated tools, and before running code that changes the model, tell the user " +
+      "what it will do. The snippet becomes the body of `public static object Execute(Document document, " +
+      "object[] parameters)` with the usings System, System.Linq, System.Collections.Generic, " +
+      "Autodesk.Revit.DB and Autodesk.Revit.UI. Use the variables `document` (the active document; no " +
+      "UIApplication or UIDocument is passed) and `parameters` (the strings from 'parameters'), and end " +
+      "every code path with a `return` statement (e.g. `return null;`). The Revit API works in internal " +
+      "units: lengths in feet (1 ft = 304.8 mm), angles in radians. Returns success, result (the return " +
+      "value serialized to a JSON string, so return plain values, lists or anonymous objects rather than " +
+      "Revit API objects) and errorMessage (compile errors, with line numbers relative to the wrapped code, " +
+      "or the exception thrown at run time).",
+    schema: {
       code: z
         .string()
         .describe(
-          "The C# code to execute in Revit. This code will be inserted into the Execute method of a template with access to Document and parameters."
+          "C# statements forming the body of Execute(Document document, object[] parameters); must return a value"
         ),
       parameters: z
         .array(z.string())
         .optional()
-        .describe(
-          "Optional execution parameters that will be passed to your code"
-        ),
+        .describe("Optional strings passed to the snippet as the object[] `parameters`"),
       transactionMode: transactionModeSchema,
     },
-    async (args, extra) => {
-      const params = {
-        code: args.code,
-        parameters: args.parameters || [],
-        transactionMode: args.transactionMode,
-      };
-
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand("send_code_to_revit", params);
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Code execution successful!\nResult: ${JSON.stringify(
-                response,
-                null,
-                2
-              )}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Code execution failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+    buildParams: (args) => ({
+      code: args.code,
+      parameters: args.parameters || [],
+      transactionMode: args.transactionMode,
+    }),
+    formatResult: (response) => {
+      // Zelfde tekst als vóór de omzetting; alleen bij success=false niet langer "successful" melden
+      const prefix =
+        response && response.success === false ? "Code execution failed" : "Code execution successful!";
+      return `${prefix}\nResult: ${JSON.stringify(response, null, 2)}`;
+    },
+  });
 }

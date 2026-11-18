@@ -6,7 +6,7 @@ using RevitMCPSDK.API.Base;
 
 namespace RevitMCPCommandSet.Commands
 {
-    public class CreateLineElementCommand : ExternalEventCommandBase
+    public class CreateLineElementCommand : RevitCommandBase
     {
         private CreateLineElementEventHandler _handler => (CreateLineElementEventHandler)Handler;
 
@@ -38,7 +38,7 @@ namespace RevitMCPCommandSet.Commands
                 _handler.SetParameters(data);
 
                 // Extern event activeren en wachten op voltooiing
-                if (RaiseAndWaitForCompletion(10000))
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                 {
                     return _handler.Result;
                 }

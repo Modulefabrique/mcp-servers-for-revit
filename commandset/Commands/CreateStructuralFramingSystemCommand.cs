@@ -6,7 +6,7 @@ using RevitMCPSDK.API.Base;
 
 namespace RevitMCPCommandSet.Commands
 {
-    public class CreateStructuralFramingSystemCommand : ExternalEventCommandBase
+    public class CreateStructuralFramingSystemCommand : RevitCommandBase
     {
         private CreateStructuralFramingSystemEventHandler _handler => (CreateStructuralFramingSystemEventHandler)Handler;
 
@@ -44,7 +44,7 @@ namespace RevitMCPCommandSet.Commands
                 _handler.SetParameters(data);
 
                 // Wait for completion with 15 second timeout (beam creation can be slower)
-                if (RaiseAndWaitForCompletion(15000))
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                 {
                     return _handler.Result;
                 }

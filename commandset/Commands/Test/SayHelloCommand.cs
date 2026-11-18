@@ -5,7 +5,7 @@ using RevitMCPCommandSet.Services;
 
 namespace RevitMCPCommandSet.Commands.Test
 {
-    public class SayHelloCommand : ExternalEventCommandBase
+    public class SayHelloCommand : RevitCommandBase
     {
         private static readonly object _executionLock = new object();
         private SayHelloEventHandler _handler => (SayHelloEventHandler)Handler;
@@ -30,10 +30,10 @@ namespace RevitMCPCommandSet.Commands.Test
                         message = parameters["message"].ToString();
                     }
 
-                    _handler.ResetCompletion();
+
                     _handler.Message = message;
 
-                    if (RaiseAndWaitForCompletion(15000))
+                    if (RaiseAndWaitForCompletion(CommandTimeouts.Read))
                     {
                         return new { success = true, message = message };
                     }

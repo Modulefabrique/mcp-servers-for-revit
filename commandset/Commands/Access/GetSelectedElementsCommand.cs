@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace RevitMCPCommandSet.Commands.Access
 {
-    public class GetSelectedElementsCommand : ExternalEventCommandBase
+    public class GetSelectedElementsCommand : RevitCommandBase
     {
         private static readonly object _executionLock = new object();
         private GetSelectedElementsEventHandler _handler => (GetSelectedElementsEventHandler)Handler;
@@ -37,7 +37,7 @@ namespace RevitMCPCommandSet.Commands.Access
                     _handler.Limit = limit;
 
                     // Extern event activeren en wachten op voltooiing
-                    if (RaiseAndWaitForCompletion(15000))
+                    if (RaiseAndWaitForCompletion(CommandTimeouts.Read))
                     {
                         if (_handler.ErrorMessage != null)
                             throw new Exception(_handler.ErrorMessage);

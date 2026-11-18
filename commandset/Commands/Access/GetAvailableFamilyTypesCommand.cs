@@ -5,7 +5,7 @@ using RevitMCPSDK.API.Base;
 
 namespace RevitMCPCommandSet.Commands.Access
 {
-    public class GetAvailableFamilyTypesCommand : ExternalEventCommandBase
+    public class GetAvailableFamilyTypesCommand : RevitCommandBase
     {
         private static readonly object _executionLock = new object();
         private GetAvailableFamilyTypesEventHandler _handler => (GetAvailableFamilyTypesEventHandler)Handler;
@@ -35,7 +35,7 @@ namespace RevitMCPCommandSet.Commands.Access
                     _handler.Limit = limit;
 
                     // Extern event activeren en wachten op voltooiing, maximaal 15 seconden wachten
-                    if (RaiseAndWaitForCompletion(15000))
+                    if (RaiseAndWaitForCompletion(CommandTimeouts.Read))
                     {
                         if (_handler.ErrorMessage != null)
                             throw new Exception(_handler.ErrorMessage);

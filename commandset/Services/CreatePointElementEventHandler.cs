@@ -5,7 +5,7 @@ using RevitMCPCommandSet.Utils;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class CreatePointElementEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class CreatePointElementEventHandler : WaitableExternalEventHandlerBase
     {
         private UIApplication uiApp;
         private UIDocument uiDoc => uiApp.ActiveUIDocument;
@@ -13,17 +13,13 @@ namespace RevitMCPCommandSet.Services
         private Autodesk.Revit.ApplicationServices.Application app => uiApp.Application;
 
         /// <summary>
-        /// Event-wachtobject
-        /// </summary>
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
-        /// <summary>
         /// Aan te maken data (invoerdata)
         /// </summary>
         public List<PointElement> CreatedInfo { get; private set; }
         /// <summary>
         /// Uitvoeringsresultaat (uitvoerdata)
         /// </summary>
-        public AIResult<List<int>> Result { get; private set; }
+        public AIResult<List<long>> Result { get; private set; }
         private List<string> _warnings = new List<string>();
 
         /// <summary>
@@ -32,19 +28,18 @@ namespace RevitMCPCommandSet.Services
         public void SetParameters(List<PointElement> data)
         {
             CreatedInfo = data;
-            _resetEvent.Reset();
         }
-        public void Execute(UIApplication uiapp)
+        protected override void ExecuteCore(UIApplication uiapp)
         {
             uiApp = uiapp;
 
             try
             {
-                var elementIds = new List<int>();
+                var elementIds = new List<long>();
                 _warnings.Clear();
                 foreach (var data in CreatedInfo)
                 {
-                    int requestedTypeId = data.TypeId;
+                    long requestedTypeId = data.TypeId;
 
                     // Stap 0: bouwdeeltype ophalen
                     BuiltInCategory builtInCategory = BuiltInCategory.INVALID;
@@ -209,10 +204,10 @@ namespace RevitMCPCommandSet.Services
                                 ElementTransformUtils.RotateElement(doc, instance.Id, rotationAxis, angleRadians);
                             }
 
-                            elementIds.Add(instance.Id.GetIntValue());
+                            elementIds.Add(instance.Id.GetValue());
                         }
 
-                        transaction.Commit();
+                        transaction.CommitOrThrow();
                     }
                 }
                 string message = $"Successfully created {elementIds.Count} element(s).";
@@ -220,7 +215,7 @@ namespace RevitMCPCommandSet.Services
                 {
                     message += "\n\n⚠ Warnings:\n  • " + string.Join("\n  • ", _warnings);
                 }
-                Result = new AIResult<List<int>>
+                Result = new AIResult<List<long>>
                 {
                     Success = true,
                     Message = message,
@@ -229,32 +224,19 @@ namespace RevitMCPCommandSet.Services
             }
             catch (Exception ex)
             {
-                Result = new AIResult<List<int>>
+                Result = new AIResult<List<long>>
                 {
                     Success = false,
                     Message = $"Fout bij het aanmaken van puntelement: {ex.Message}",
                 };
             }
-            finally
-            {
-                _resetEvent.Set(); // Meldt het wachtende thread dat de bewerking is voltooid
-            }
         }
 
-        /// <summary>
-        /// Wacht tot het aanmaken is voltooid
-        /// </summary>
-        /// <param name="timeoutMilliseconds">Time-out (milliseconden)</param>
-        /// <returns>Of de bewerking is voltooid vóór de time-out</returns>
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
         /// <summary>
         /// IExternalEventHandler.GetName-implementatie
         /// </summary>
-        public string GetName()
+        public override string GetName()
         {
             return "Puntelement aanmaken";
         }

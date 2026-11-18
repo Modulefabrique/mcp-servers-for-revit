@@ -40,16 +40,12 @@ namespace RevitMCPCommandSet.Services.Architecture
     /// <summary>
     /// Event handler for creating rooms in Revit
     /// </summary>
-    public class CreateRoomEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class CreateRoomEventHandler : WaitableExternalEventHandlerBase
     {
         private UIApplication _uiApp;
         private UIDocument _uiDoc => _uiApp.ActiveUIDocument;
         private Document _doc => _uiDoc.Document;
 
-        /// <summary>
-        /// Event wait object for synchronization
-        /// </summary>
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         /// <summary>
         /// Room creation data (input)
@@ -67,10 +63,9 @@ namespace RevitMCPCommandSet.Services.Architecture
         public void SetParameters(List<RoomCreationInfo> data)
         {
             RoomData = data;
-            _resetEvent.Reset();
         }
 
-        public void Execute(UIApplication uiapp)
+        protected override void ExecuteCore(UIApplication uiapp)
         {
             _uiApp = uiapp;
 
@@ -245,12 +240,16 @@ namespace RevitMCPCommandSet.Services.Architecture
                             }
                         }
 
-                        tx.Commit();
+                        if (tx.Commit() != TransactionStatus.Committed)
+                        {
+                            // Revit heeft de ruimte bij het afronden teruggedraaid: niet als aangemaakt melden
+                            continue;
+                        }
 
                         // Add to result list
                         createdRooms.Add(new RoomResultInfo
                         {
-                            Id = room.Id.GetIntValue(),
+                            Id = room.Id.GetValue(),
                             UniqueId = room.UniqueId,
                             Name = roomInfo.Name ?? "Room",
                             Number = roomNumber, // Use the actual assigned number (may differ from requested if made unique)
@@ -276,10 +275,6 @@ namespace RevitMCPCommandSet.Services.Architecture
                     Success = false,
                     Message = $"Error creating rooms: {ex.Message}",
                 };
-            }
-            finally
-            {
-                _resetEvent.Set(); // Signal that the operation is complete
             }
         }
 
@@ -443,20 +438,11 @@ namespace RevitMCPCommandSet.Services.Architecture
             return baseNumber + "-" + Guid.NewGuid().ToString().Substring(0, 4);
         }
 
-        /// <summary>
-        /// Wait for the operation to complete
-        /// </summary>
-        /// <param name="timeoutMilliseconds">Timeout in milliseconds</param>
-        /// <returns>True if completed before timeout</returns>
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
         /// <summary>
         /// IExternalEventHandler.GetName implementation
         /// </summary>
-        public string GetName()
+        public override string GetName()
         {
             return "Create Room";
         }
@@ -467,7 +453,7 @@ namespace RevitMCPCommandSet.Services.Architecture
     /// </summary>
     public class RoomResultInfo
     {
-        public int Id { get; set; }
+        public long Id { get; set; }
         public string UniqueId { get; set; }
         public string Name { get; set; }
         public string Number { get; set; }

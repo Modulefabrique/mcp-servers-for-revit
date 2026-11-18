@@ -1,32 +1,52 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { storeRoomsBatch, getProjectByName, getRoomsByProjectId } from "../database/service.js";
 
 const RoomSchema = z.object({
-  room_id: z.string().describe("Unique identifier for the room (Revit Element ID)"),
+  room_id: z.string().describe("Revit element id of the room; key of the record within the project"),
   room_name: z.string().optional().describe("Room name"),
   room_number: z.string().optional().describe("Room number"),
   department: z.string().optional().describe("Department"),
-  level: z.string().optional().describe("Level or floor"),
-  area: z.number().optional().describe("Room area"),
-  perimeter: z.number().optional().describe("Room perimeter"),
+  level: z.string().optional().describe("Level name"),
+  area: z.number().optional().describe("Room area; stored as given, state the unit in metadata if needed"),
+  perimeter: z.number().optional().describe("Room perimeter; stored as given"),
   occupancy: z.string().optional().describe("Occupancy type"),
   comments: z.string().optional().describe("Additional comments"),
   metadata: z.record(z.string()).optional().describe("Additional room metadata as key-value pairs")
 });
 
 export function registerStoreRoomDataTool(server: McpServer) {
-  server.tool(
+  server.registerTool(
     "store_room_data",
-    "Store or update room metadata for a specific Revit project in the local database. Rooms are linked to a project by project name. The project must exist before storing room data.",
     {
-      project_name: z.string().describe("The name of the Revit project this room belongs to"),
-      rooms: z.array(RoomSchema).describe("Array of room data to store")
+      title: "Store room data",
+      description:
+        "Save room records for a project in the MCP server's local SQLite database (not in the Revit model) " +
+        "for later retrieval with query_stored_data. The project must already exist: call store_project_data " +
+        "first, otherwise an error is returned. Rooms are keyed by room_id within the project: an existing " +
+        "room is updated and every optional field that is omitted is cleared, so send complete records. All " +
+        "rooms of one call are stored in a single database transaction. Values are stored exactly as given " +
+        "(no unit conversion); room data can be read from Revit with export_room_data (areas in square feet). " +
+        "Returns { success, message, project_id, project_name, total_rooms, rooms_stored }.",
+      inputSchema: {
+        project_name: z.string().describe("Exact name of the stored project these rooms belong to"),
+        rooms: z.array(RoomSchema).describe("Room records to store")
+      },
+      annotations: {
+        title: "Store room data",
+        readOnlyHint: false,
+        destructiveHint: false,
+        // Dezelfde aanroep herhalen levert dezelfde records op (alleen de tijdstempel verandert)
+        idempotentHint: true,
+        // Alleen de lokale database, geen externe systemen
+        openWorldHint: false,
+      },
     },
-    async (args: any) => {
+    async (args): Promise<CallToolResult> => {
       try {
-        // Get or create project
-        let project = getProjectByName(args.project_name);
+        // Project ophalen; het moet al bestaan
+        const project = getProjectByName(args.project_name);
 
         if (!project) {
           return {
@@ -43,7 +63,7 @@ export function registerStoreRoomDataTool(server: McpServer) {
           };
         }
 
-        // Store rooms
+        // Ruimten opslaan
         const count = storeRoomsBatch(project.id, args.rooms);
         const rooms = getRoomsByProjectId(project.id);
 
@@ -69,7 +89,7 @@ export function registerStoreRoomDataTool(server: McpServer) {
               type: "text",
               text: JSON.stringify({
                 success: false,
-                error: error.message
+                error: error instanceof Error ? error.message : String(error)
               }, null, 2)
             }
           ],

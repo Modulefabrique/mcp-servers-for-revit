@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace RevitMCPCommandSet.Commands
 {
-    public class OperateElementCommand : ExternalEventCommandBase
+    public class OperateElementCommand : RevitCommandBase
     {
         private OperateElementEventHandler _handler => (OperateElementEventHandler)Handler;
 
@@ -43,7 +43,7 @@ namespace RevitMCPCommandSet.Commands
                 _handler.SetParameters(data);
 
                 // Extern event activeren en wachten op voltooiing
-                if (RaiseAndWaitForCompletion(10000))
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                 {
                     return _handler.Result;
                 }

@@ -3,19 +3,16 @@ using Autodesk.Revit.UI;
 using RevitMCPCommandSet.Models.Architecture;
 using RevitMCPCommandSet.Models.Common;
 using RevitMCPSDK.API.Interfaces;
+using RevitMCPCommandSet.Utils;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class CreateGridEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class CreateGridEventHandler : WaitableExternalEventHandlerBase
     {
         private UIApplication uiApp;
         private UIDocument uiDoc => uiApp.ActiveUIDocument;
         private Document doc => uiDoc.Document;
 
-        /// <summary>
-        /// Event synchronization object
-        /// </summary>
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         /// <summary>
         /// Grid creation parameters
@@ -33,10 +30,9 @@ namespace RevitMCPCommandSet.Services
         public void SetParameters(GridCreationInfo parameters)
         {
             Parameters = parameters;
-            _resetEvent.Reset();
         }
 
-        public void Execute(UIApplication uiapp)
+        protected override void ExecuteCore(UIApplication uiapp)
         {
             uiApp = uiapp;
 
@@ -109,7 +105,7 @@ namespace RevitMCPCommandSet.Services
 #if REVIT2024_OR_GREATER
                         long gridId = grid.Id.Value;
 #else
-                        long gridId = grid.Id.IntegerValue;
+                        long gridId = grid.Id.GetValue();
 #endif
 
                         createdGrids.Add(new GridCreationResult
@@ -165,7 +161,7 @@ namespace RevitMCPCommandSet.Services
 #if REVIT2024_OR_GREATER
                         long gridId = grid.Id.Value;
 #else
-                        long gridId = grid.Id.IntegerValue;
+                        long gridId = grid.Id.GetValue();
 #endif
 
                         createdGrids.Add(new GridCreationResult
@@ -179,7 +175,7 @@ namespace RevitMCPCommandSet.Services
                         });
                     }
 
-                    trans.Commit();
+                    trans.CommitOrThrow();
                 }
 
                 int renamedCount = createdGrids.Count(g => g.WasRenamed);
@@ -206,10 +202,6 @@ namespace RevitMCPCommandSet.Services
                     Message = $"Failed to create grids: {ex.Message}",
                     Response = null
                 };
-            }
-            finally
-            {
-                _resetEvent.Set(); // Signal completion
             }
         }
 
@@ -317,18 +309,11 @@ namespace RevitMCPCommandSet.Services
             return candidateName;
         }
 
-        /// <summary>
-        /// Wait for grid creation to complete
-        /// </summary>
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
         /// <summary>
         /// Get handler name
         /// </summary>
-        public string GetName()
+        public override string GetName()
         {
             return "Create Grid System";
         }

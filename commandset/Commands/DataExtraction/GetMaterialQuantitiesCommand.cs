@@ -5,7 +5,7 @@ using RevitMCPSDK.API.Base;
 
 namespace RevitMCPCommandSet.Commands.DataExtraction
 {
-    public class GetMaterialQuantitiesCommand : ExternalEventCommandBase
+    public class GetMaterialQuantitiesCommand : RevitCommandBase
     {
         private GetMaterialQuantitiesEventHandler _handler => (GetMaterialQuantitiesEventHandler)Handler;
 
@@ -28,7 +28,7 @@ namespace RevitMCPCommandSet.Commands.DataExtraction
                 _handler.SetParameters(categoryFilters, selectedElementsOnly);
 
                 // Execute and wait
-                if (RaiseAndWaitForCompletion(120000)) // 120 second timeout for large projects
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Heavy))
                 {
                     return _handler.ResultInfo;
                 }

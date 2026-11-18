@@ -1,54 +1,38 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerExportRoomDataTool(server: McpServer) {
-  server.tool(
-    "export_room_data",
-    "Export all room data from the current Revit project. Returns detailed information about each room including name, number, level, area, volume, perimeter, department, and more. Useful for generating room schedules, space analysis, and facility management data.",
-    {
+  defineRevitTool(server, {
+    name: "export_room_data",
+    title: "Export room data",
+    kind: "read",
+    description:
+      "List all rooms in the project (whole model, not just the active view) with id, uniqueId, name, " +
+      "number, level name, area, volume, perimeter, unbounded height, department, comments, phase and " +
+      "occupancy, plus totalRooms and totalArea. Values are in Revit internal units, not metric: area and " +
+      "totalArea in square feet (x 0.09290304 = m2), volume in cubic feet (x 0.0283168 = m3), perimeter and " +
+      "unboundedHeight in feet (x 304.8 = mm). Rooms with zero area (unplaced or not enclosed) are only " +
+      "included when both includeUnplacedRooms and includeNotEnclosedRooms are true. Changes nothing.",
+    schema: {
       includeUnplacedRooms: z
         .boolean()
         .optional()
         .default(false)
-        .describe("Whether to include unplaced rooms (rooms not yet placed in the model). Defaults to false."),
+        .describe(
+          "Together with includeNotEnclosedRooms=true: also include rooms with zero area. Defaults to false."
+        ),
       includeNotEnclosedRooms: z
         .boolean()
         .optional()
         .default(false)
-        .describe("Whether to include rooms that are not fully enclosed. Defaults to false."),
+        .describe(
+          "Together with includeUnplacedRooms=true: also include rooms with zero area. Defaults to false."
+        ),
     },
-    async (args, extra) => {
-      const params = {
-        includeUnplacedRooms: args.includeUnplacedRooms ?? false,
-        includeNotEnclosedRooms: args.includeNotEnclosedRooms ?? false,
-      };
-
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand("export_room_data", params);
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Export room data failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+    buildParams: (args) => ({
+      includeUnplacedRooms: args.includeUnplacedRooms ?? false,
+      includeNotEnclosedRooms: args.includeNotEnclosedRooms ?? false,
+    }),
+  });
 }

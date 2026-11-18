@@ -10,7 +10,7 @@ namespace RevitMCPCommandSet.Commands
     /// Beheert materialen volgens de NAAKT-codering: opties opvragen, materialen opsommen, aanmaken en
     /// aanpassen. Eén commando met een 'action'-veld; de uitwerking zit in MaterialOperationsUtils.
     /// </summary>
-    public class ManageMaterialsCommand : ExternalEventCommandBase
+    public class ManageMaterialsCommand : RevitCommandBase
     {
         private static readonly string[] Actions = { "options", "list", "create", "update" };
 
@@ -50,7 +50,7 @@ namespace RevitMCPCommandSet.Commands
                 _handler.Request = request;
 
                 // Extern event activeren en wachten op voltooiing
-                if (!RaiseAndWaitForCompletion(120000)) // 120 seconden time-out
+                if (!RaiseAndWaitForCompletion(CommandTimeouts.Heavy))
                 {
                     throw new TimeoutException("Time-out bij het beheren van materialen");
                 }

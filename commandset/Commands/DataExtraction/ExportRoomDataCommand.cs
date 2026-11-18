@@ -5,7 +5,7 @@ using RevitMCPSDK.API.Base;
 
 namespace RevitMCPCommandSet.Commands.DataExtraction
 {
-    public class ExportRoomDataCommand : ExternalEventCommandBase
+    public class ExportRoomDataCommand : RevitCommandBase
     {
         private ExportRoomDataEventHandler _handler => (ExportRoomDataEventHandler)Handler;
 
@@ -28,7 +28,7 @@ namespace RevitMCPCommandSet.Commands.DataExtraction
                 _handler.SetParameters(includeUnplacedRooms, includeNotEnclosedRooms);
 
                 // Execute and wait
-                if (RaiseAndWaitForCompletion(60000)) // 60 second timeout
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Read))
                 {
                     return _handler.ResultInfo;
                 }

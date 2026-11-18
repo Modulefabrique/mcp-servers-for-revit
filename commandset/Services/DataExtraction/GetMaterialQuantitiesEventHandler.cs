@@ -5,29 +5,21 @@ using RevitMCPSDK.API.Interfaces;
 
 namespace RevitMCPCommandSet.Services.DataExtraction
 {
-    public class GetMaterialQuantitiesEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class GetMaterialQuantitiesEventHandler : WaitableExternalEventHandlerBase
     {
         private List<string> _categoryFilters;
         private bool _selectedElementsOnly;
 
         public GetMaterialQuantitiesResult ResultInfo { get; private set; }
-        public bool TaskCompleted { get; private set; }
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         public void SetParameters(List<string> categoryFilters = null, bool selectedElementsOnly = false)
         {
             _categoryFilters = categoryFilters;
             _selectedElementsOnly = selectedElementsOnly;
-            TaskCompleted = false;
-            _resetEvent.Reset();
         }
 
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
-        public void Execute(UIApplication app)
+        protected override void ExecuteCore(UIApplication app)
         {
             try
             {
@@ -89,7 +81,7 @@ namespace RevitMCPCommandSet.Services.DataExtraction
 #if REVIT2024_OR_GREATER
                                 MaterialId = matId.Value,
 #else
-                                MaterialId = matId.IntegerValue,
+                                MaterialId = matId.GetValue(),
 #endif
                                 MaterialName = material.Name,
                                 MaterialClass = material.MaterialClass
@@ -108,9 +100,9 @@ namespace RevitMCPCommandSet.Services.DataExtraction
                         {
                             materialData[matId].ElementIds.Add(element.Id.Value);
 #else
-                        if (!materialData[matId].ElementIds.Contains(element.Id.IntegerValue))
+                        if (!materialData[matId].ElementIds.Contains(element.Id.GetValue()))
                         {
-                            materialData[matId].ElementIds.Add(element.Id.IntegerValue);
+                            materialData[matId].ElementIds.Add(element.Id.GetValue());
 #endif
                             materialData[matId].ElementCount++;
                         }
@@ -139,14 +131,9 @@ namespace RevitMCPCommandSet.Services.DataExtraction
                     Message = $"Error calculating material quantities: {ex.Message}"
                 };
             }
-            finally
-            {
-                TaskCompleted = true;
-                _resetEvent.Set();
-            }
         }
 
-        public string GetName()
+        public override string GetName()
         {
             return "Get Material Quantities";
         }

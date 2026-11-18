@@ -30,7 +30,7 @@ namespace RevitMCPCommandSet.Models.Common
         /// Let op: dit filter is alleen van toepassing op elementinstanties, niet op typeelementen.
         /// </summary>
         [JsonProperty("filterFamilySymbolId")]
-        public int FilterFamilySymbolId { get; set; } = -1;
+        public long FilterFamilySymbolId { get; set; } = -1;
         /// <summary>
         /// Haalt op of stelt in of elementtypes (zoals wandtypes, deurtypes, enz.) moeten worden opgenomen
         /// </summary>
@@ -60,11 +60,18 @@ namespace RevitMCPCommandSet.Models.Common
         [JsonProperty("boundingBoxMax")]
         public JZPoint BoundingBoxMax { get; set; } = null;
         /// <summary>
-        /// Maximaal aantal elementen. Zonder waarde (of &lt;= 0) geldt er geen limiet en worden alle
-        /// elementen die aan de filtercriteria voldoen geretourneerd.
+        /// Maximaal aantal elementen per aanroep (paginagrootte). Zonder waarde (of &lt;= 0) geldt
+        /// PagedAIResult.DefaultLimit; hoger dan PagedAIResult.MaxLimit wordt begrensd. Het antwoord
+        /// meldt altijd het totaal en of er meer is, zodat de volgende pagina met Offset op te vragen is.
         /// </summary>
         [JsonProperty("maxElements")]
         public int? MaxElements { get; set; } = null;
+
+        /// <summary>
+        /// Aantal gevonden elementen dat wordt overgeslagen (voor de volgende pagina). Standaard 0.
+        /// </summary>
+        [JsonProperty("offset")]
+        public int? Offset { get; set; } = null;
         /// <summary>
         /// Haalt op of stelt in of per element de uitgebreide informatie wordt geretourneerd (peil, bounding box,
         /// parameters, weergave-/ruimte-/annotatiespecifieke gegevens, enz.). Standaard false: dan wordt alleen

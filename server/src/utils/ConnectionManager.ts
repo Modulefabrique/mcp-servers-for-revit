@@ -1,8 +1,11 @@
 import { RevitClientConnection } from "./SocketClient.js";
+import { RevitBridgeError } from "./RevitErrors.js";
 
-// Mutex to serialize all Revit connections - prevents race conditions
-// when multiple requests are made in parallel
+// Mutex om alle Revit-verbindingen te serialiseren: voorkomt race conditions
+// wanneer meerdere verzoeken tegelijk binnenkomen
 let connectionMutex: Promise<void> = Promise.resolve();
+
+const CONNECT_TIMEOUT_MS = 5000;
 
 /**
  * Maakt verbinding met de Revit-client en voert een operatie uit
@@ -12,7 +15,7 @@ let connectionMutex: Promise<void> = Promise.resolve();
 export async function withRevitConnection<T>(
   operation: (client: RevitClientConnection) => Promise<T>
 ): Promise<T> {
-  // Wait for any pending connection to complete before starting a new one
+  // Wacht tot een lopend verzoek klaar is voordat een nieuw verzoek start
   const previousMutex = connectionMutex;
   let releaseMutex: () => void;
   connectionMutex = new Promise<void>((resolve) => {
@@ -26,16 +29,27 @@ export async function withRevitConnection<T>(
     // Verbinding maken met de Revit-client
     if (!revitClient.isConnected) {
       await new Promise<void>((resolve, reject) => {
-        const onConnect = () => {
+        let timer: NodeJS.Timeout;
+
+        const cleanup = () => {
+          clearTimeout(timer);
           revitClient.socket.removeListener("connect", onConnect);
           revitClient.socket.removeListener("error", onError);
+        };
+
+        const onConnect = () => {
+          cleanup();
           resolve();
         };
 
         const onError = (error: any) => {
-          revitClient.socket.removeListener("connect", onConnect);
-          revitClient.socket.removeListener("error", onError);
-          reject(new Error("connect to revit client failed"));
+          cleanup();
+          reject(
+            new RevitBridgeError(
+              "connection_failed",
+              `Connection to Revit failed: ${error?.message ?? String(error)}`
+            )
+          );
         };
 
         revitClient.socket.on("connect", onConnect);
@@ -43,11 +57,15 @@ export async function withRevitConnection<T>(
 
         revitClient.connect();
 
-        setTimeout(() => {
-          revitClient.socket.removeListener("connect", onConnect);
-          revitClient.socket.removeListener("error", onError);
-          reject(new Error("Verbinding met Revit-client mislukt"));
-        }, 5000);
+        timer = setTimeout(() => {
+          cleanup();
+          reject(
+            new RevitBridgeError(
+              "connection_failed",
+              `Connection to Revit timed out after ${CONNECT_TIMEOUT_MS / 1000} s`
+            )
+          );
+        }, CONNECT_TIMEOUT_MS);
       });
     }
 
@@ -56,7 +74,7 @@ export async function withRevitConnection<T>(
   } finally {
     // Verbinding verbreken
     revitClient.disconnect();
-    // Release the mutex so the next request can proceed
+    // Mutex vrijgeven zodat het volgende verzoek kan starten
     releaseMutex!();
   }
 }

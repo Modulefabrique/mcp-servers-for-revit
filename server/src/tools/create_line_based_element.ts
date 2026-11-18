@@ -1,81 +1,72 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerCreateLineBasedElementTool(server: McpServer) {
-  server.tool(
-    "create_line_based_element",
-    "Create one or more line-based elements in Revit such as walls, beams, or pipes. Supports batch creation with detailed parameters including family type ID, start and end points, thickness, height, and level information. All units are in millimeters (mm).",
-    {
+  defineRevitTool(server, {
+    name: "create_line_based_element",
+    title: "Create line-based elements",
+    kind: "write",
+    description:
+      "Create walls, ducts or line-based family instances (e.g. structural framing beams) along a line, one " +
+      "transaction per element. Coordinates and lengths are in millimeters, in model coordinates relative to " +
+      "Revit's internal origin. The type comes from typeId when it is a valid wall type, duct type or family " +
+      "type id (from get_available_family_types; never invent ids); otherwise the first available type of " +
+      "'category' is used, with a warning in Message if a typeId was given but not found. Level: the element " +
+      "is associated with the existing level nearest to baseLevel (an elevation in mm, not a level id). " +
+      "Walls: base at baseLevel + baseOffset, height is the unconnected height, thickness is ignored (the " +
+      "wall type determines it). Ducts: offset at baseLevel + baseOffset, created in the project's first " +
+      "Supply Air system type (nothing is created if there is none), height is ignored. Other families: the " +
+      "3D line is passed to Revit as is, so give p0/p1 the intended Z. Elements with an unknown category and no valid typeId are " +
+      "skipped without a warning, so compare the returned ids with what you requested. If an element throws " +
+      "an error, processing stops; elements created before it remain in the model. Returns Success, Message " +
+      "(including warnings) and Response = list of the created element ids.",
+    schema: {
       data: z
         .array(
           z.object({
             category: z
               .string()
-              .describe("Revit built-in category (e.g., OST_Walls, OST_StructuralFraming, OST_DuctCurves)"),
+              .describe(
+                "BuiltInCategory name, e.g. OST_Walls, OST_StructuralFraming, OST_DuctCurves. Ignored when typeId is a valid type id"
+              ),
             typeId: z
               .number()
               .optional()
-              .describe("The ID of the family type to create."),
+              .describe(
+                "Element id of the wall type, duct type or family type to create (from get_available_family_types)"
+              ),
             locationLine: z
               .object({
                 p0: z.object({
-                  x: z.number().describe("X coordinate of start point"),
-                  y: z.number().describe("Y coordinate of start point"),
-                  z: z.number().describe("Z coordinate of start point"),
+                  x: z.number().describe("X coordinate of start point in mm"),
+                  y: z.number().describe("Y coordinate of start point in mm"),
+                  z: z.number().describe("Z coordinate of start point in mm"),
                 }),
                 p1: z.object({
-                  x: z.number().describe("X coordinate of end point"),
-                  y: z.number().describe("Y coordinate of end point"),
-                  z: z.number().describe("Z coordinate of end point"),
+                  x: z.number().describe("X coordinate of end point in mm"),
+                  y: z.number().describe("Y coordinate of end point in mm"),
+                  z: z.number().describe("Z coordinate of end point in mm"),
                 }),
               })
-              .describe("The line defining the element's location"),
+              .describe("Location line of the element, from p0 to p1 (mm)"),
             thickness: z
               .number()
-              .describe(
-                "Thickness/width of the element (e.g., wall thickness)"
-              ),
+              .describe("Currently ignored: the thickness/width comes from the element type"),
             height: z
               .number()
-              .describe("Height of the element (e.g., wall height)"),
-            baseLevel: z.number().describe("Base level height"),
-            baseOffset: z.number().describe("Offset from the base level"),
+              .describe("Height in mm (for walls the unconnected height; ignored for ducts)"),
+            baseLevel: z
+              .number()
+              .describe(
+                "Elevation in mm used to pick the nearest existing level (not a level id)"
+              ),
+            baseOffset: z
+              .number()
+              .describe("Offset in mm of the element base above baseLevel"),
           })
         )
-        .describe("Array of line-based elements to create"),
+        .describe("Line-based elements to create"),
     },
-    async (args, extra) => {
-      const params = args;
-
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand(
-            "create_line_based_element",
-            params
-          );
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Create line-based element failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+  });
 }

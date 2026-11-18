@@ -4,37 +4,26 @@ using RevitMCPSDK.API.Interfaces;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class GetCurrentViewInfoEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class GetCurrentViewInfoEventHandler : WaitableExternalEventHandlerBase
     {
         // Uitvoeringsresultaat
         public CurrentViewInfo ResultInfo { get; private set; }
 
-        // Object voor statussynchronisatie
-        public bool TaskCompleted { get; private set; }
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         // Foutmelding bij mislukken (wordt teruggegeven in de response i.p.v. een dialoog te tonen)
         public string ErrorMessage { get; private set; }
 
         /// <summary>
-        /// Zet de wachtstatus en het vorige resultaat terug. Moet vóór het raisen van het externe event
-        /// worden aangeroepen, zodat een snel afgeronde handler zijn signaal niet kwijtraakt.
+        /// Zet het resultaat van een vorig verzoek terug. Aanroepen vóór het instellen van nieuwe parameters.
         /// </summary>
         public void ResetCompletion()
         {
-            TaskCompleted = false;
             ResultInfo = null;
             ErrorMessage = null;
-            _resetEvent.Reset();
         }
 
-        // Implementatie van de IWaitableExternalEventHandler-interface
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
-        public void Execute(UIApplication app)
+        protected override void ExecuteCore(UIApplication app)
         {
             try
             {
@@ -45,9 +34,9 @@ namespace RevitMCPCommandSet.Services
                 ResultInfo = new CurrentViewInfo
                 {
 #if REVIT2024_OR_GREATER
-                    Id = (int)activeView.Id.Value,
+                    Id = activeView.Id.Value,
 #else
-                    Id = activeView.Id.IntegerValue,
+                    Id = activeView.Id.GetValue(),
 #endif
                     UniqueId = activeView.UniqueId,
                     Name = activeView.Name,
@@ -61,14 +50,9 @@ namespace RevitMCPCommandSet.Services
             {
                 ErrorMessage = "Ophalen van weergave-informatie mislukt: " + ex.Message;
             }
-            finally
-            {
-                TaskCompleted = true;
-                _resetEvent.Set();
-            }
         }
 
-        public string GetName()
+        public override string GetName()
         {
             return "Huidige weergave-informatie ophalen";
         }

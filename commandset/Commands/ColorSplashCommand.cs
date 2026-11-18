@@ -5,7 +5,7 @@ using RevitMCPCommandSet.Services;
 
 namespace RevitMCPCommandSet.Commands
 {
-    public class ColorSplashCommand : ExternalEventCommandBase
+    public class ColorSplashCommand : RevitCommandBase
     {
         private ColorSplashEventHandler _handler => (ColorSplashEventHandler)Handler;
 
@@ -64,7 +64,7 @@ namespace RevitMCPCommandSet.Commands
                 _handler.SetParameters(categoryName, parameterName, useGradient, customColors);
 
                 // Trigger external event and wait for completion
-                if (RaiseAndWaitForCompletion(20000)) // 20 second timeout
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                 {
                     return _handler.ColoringResults;
                 }

@@ -1,44 +1,23 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerSayHelloTool(server: McpServer) {
-  server.tool(
-    "say_hello",
-    "Display a greeting dialog in Revit. Useful for testing the connection between Claude and Revit.",
-    {
+  defineRevitTool(server, {
+    name: "say_hello",
+    title: "Show test dialog in Revit",
+    // Wijzigt niets in het model; toont alleen een dialoog
+    kind: "read",
+    description:
+      "Test tool: show a message dialog in Revit. The dialog is modal: Revit is blocked and this call only " +
+      "returns after the user clicks OK in Revit. Only use it when the user explicitly asks for a test " +
+      "dialog; to check the connection without user interaction use get_current_view_info. Returns success " +
+      "and the message that was shown.",
+    schema: {
       message: z
         .string()
         .optional()
-        .describe("Optional custom message to display in the dialog. Defaults to 'Hello MCP!'"),
+        .describe("Text to show in the dialog. Defaults to 'Hello MCP!'"),
     },
-    async (args, extra) => {
-      const params = args;
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand("say_hello", params);
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Say hello failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+  });
 }

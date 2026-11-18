@@ -5,7 +5,7 @@ using RevitMCPSDK.API.Base;
 
 namespace RevitMCPCommandSet.Commands.Delete
 {
-    public class DeleteElementCommand : ExternalEventCommandBase
+    public class DeleteElementCommand : RevitCommandBase
     {
         private static readonly object _executionLock = new object();
         private DeleteElementEventHandler _handler => (DeleteElementEventHandler)Handler;
@@ -33,10 +33,22 @@ namespace RevitMCPCommandSet.Commands.Delete
                     // Stel de array met te verwijderen element-ID's in
                     _handler.ResetCompletion();
                     _handler.ElementIds = elementIds;
+                    // Standaard alleen een voorbeeld: verwijderen gebeurt pas met expliciet dryRun=false
+                    _handler.DryRun = parameters?["dryRun"]?.Value<bool?>() ?? true;
 
                     // Extern event activeren en wachten op voltooiing
-                    if (RaiseAndWaitForCompletion(15000))
+                    if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                     {
+                        if (_handler.IsSuccess && _handler.Preview != null)
+                        {
+                            return new
+                            {
+                                deleted = false,
+                                dryRun = true,
+                                preview = _handler.Preview,
+                                warning = _handler.Warning
+                            };
+                        }
                         if (_handler.IsSuccess)
                         {
                             return new { deleted = true, count = _handler.DeletedCount, warning = _handler.Warning };

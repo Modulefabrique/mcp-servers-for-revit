@@ -32,7 +32,7 @@ namespace RevitMCPCommandSet.Commands.AnnotationComponents;
 /// <summary>
 ///     Command to create dimensions
 /// </summary>
-public class CreateDimensionCommand : ExternalEventCommandBase
+public class CreateDimensionCommand : RevitCommandBase
 {
     /// <summary>
     ///     Constructor
@@ -70,7 +70,7 @@ public class CreateDimensionCommand : ExternalEventCommandBase
             _handler.SetParameters(dimensions);
 
             // Raise event and wait for completion
-            if (RaiseAndWaitForCompletion(20000)) // 20 seconds timeout
+            if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                 return _handler.Result;
             throw new TimeoutException("Dimension creation operation timed out");
         }

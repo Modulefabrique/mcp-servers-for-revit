@@ -1,24 +1,32 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerSetParametersTool(server: McpServer) {
-  server.tool(
-    "set_parameters",
-    "Set one or more parameter values on one or more Revit elements in a single call. Always pass a " +
-      "list of elements, even for a single element (use a list with one entry). Parameters are looked " +
-      "up by name (same as Revit's Properties panel), only on the given element itself: to change a " +
-      "type parameter, pass the type's ElementId (TypeId), which changes it for all elements of that " +
-      "type. Numeric values for length/area/volume parameters " +
-      "must be given in the model's display units (e.g. millimeters), not Revit's internal feet. Send " +
-      "numeric values (numbers, Yes/No as true/false, ElementIds for element references) as JSON " +
-      "numbers/booleans, not as strings; send values for text parameters as strings. Returns, " +
-      "per element and per parameter, whether the change succeeded and why not if it failed. If the call " +
-      "fails with a timeout (error text containing 'time-out' or 'timed out'), split the elements list " +
-      "into smaller batches (e.g. 50-100 elements at a time) and retry with those - this is safe even if " +
-      "the timed-out call had already applied some changes, since re-setting a parameter to the same " +
-      "value is a no-op.",
-    {
+  defineRevitTool(server, {
+    name: "set_parameters",
+    title: "Set parameter values",
+    kind: "destructive",
+    // Dezelfde waarde nogmaals zetten verandert niets
+    idempotent: true,
+    description:
+      "Set one or more parameter values on one or more Revit elements in a single call. Always pass a " +
+      "list of elements, even for a single element (use a list with one entry). Take the element ids " +
+      "from ai_element_filter, get_selected_elements, get_current_view_elements or get_parameters; never " +
+      "invent ids. Parameters are looked up by name (same as Revit's Properties panel), only on the given " +
+      "element itself: to change a type parameter, pass the type's ElementId (TypeId), which changes it " +
+      "for all elements of that type. Use get_available_parameters / get_parameters first to find valid " +
+      "names and current values. Numeric values for length/area/volume parameters must be given in the " +
+      "model's display units (e.g. millimeters), not Revit's internal feet - the same units get_parameters " +
+      "returns. Send numeric values (numbers, Yes/No as true/false, ElementIds for element references) as " +
+      "JSON numbers/booleans, not as strings; send values for text parameters as strings. Returns, per " +
+      "element and per parameter, whether the change succeeded (and why not if it failed) plus OldValue " +
+      "and NewValue as shown in the Properties panel. Set dryRun=true to preview: the changes are applied " +
+      "and immediately rolled back, so you see per parameter whether it would succeed and the resulting " +
+      "value without changing the model - useful before large or risky batch changes. If the call fails " +
+      "with a timeout, nothing was changed; split the elements list into smaller batches (e.g. 50-100 " +
+      "elements at a time) and retry.",
+    schema: {
       elements: z
         .array(
           z.object({
@@ -42,35 +50,17 @@ export function registerSetParametersTool(server: McpServer) {
         .describe(
           "Elements to update, each with its own list of parameter changes. Use a single-item list for one element."
         ),
+      dryRun: z
+        .boolean()
+        .default(false)
+        .describe(
+          "false (default): apply the changes. true: preview only - apply and immediately roll back, " +
+            "nothing changes in the model."
+        ),
     },
-    async (args) => {
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand("set_parameters", {
-            elements: args.elements,
-          });
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `set parameters failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+    buildParams: (args) => ({
+      elements: args.elements,
+      dryRun: args.dryRun,
+    }),
+  });
 }

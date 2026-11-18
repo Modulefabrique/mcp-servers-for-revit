@@ -6,13 +6,15 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Newtonsoft.Json;
 using RevitMCPSDK.API.Interfaces;
+using RevitMCPCommandSet.Utils;
+using RevitMCPCommandSet.Services;
 
 namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
 {
     /// <summary>
     /// Externe event handler die de uitvoering van code afhandelt
     /// </summary>
-    public class ExecuteCodeEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class ExecuteCodeEventHandler : WaitableExternalEventHandlerBase
     {
         public const string TransactionModeAuto = "auto";
         public const string TransactionModeNone = "none";
@@ -25,9 +27,6 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
         // Informatie over het uitvoeringsresultaat
         public ExecutionResultInfo ResultInfo { get; private set; }
 
-        // Object voor statussynchronisatie
-        public bool TaskCompleted { get; private set; }
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         // Stel de uit te voeren code en parameters in
         public void SetExecutionParameters(string code, object[] parameters = null, string transactionMode = TransactionModeAuto)
@@ -35,17 +34,10 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
             _generatedCode = code;
             _executionParameters = parameters ?? Array.Empty<object>();
             _transactionMode = transactionMode == TransactionModeNone ? TransactionModeNone : TransactionModeAuto;
-            TaskCompleted = false;
-            _resetEvent.Reset();
         }
 
-        // Wachten op voltooiing van de uitvoering - implementatie van de IWaitableExternalEventHandler-interface
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
-        public void Execute(UIApplication app)
+        protected override void ExecuteCore(UIApplication app)
         {
             try
             {
@@ -73,7 +65,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
                             parameters: _executionParameters
                         );
 
-                        transaction.Commit();
+                        transaction.CommitOrThrow();
                     }
                 }
 
@@ -84,11 +76,6 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
             {
                 ResultInfo.Success = false;
                 ResultInfo.ErrorMessage = $"Uitvoering mislukt: {ex.Message}";
-            }
-            finally
-            {
-                TaskCompleted = true;
-                _resetEvent.Set();
             }
         }
 
@@ -154,7 +141,7 @@ namespace AIGeneratedCode
             }
         }
 
-        public string GetName()
+        public override string GetName()
         {
             return "AI-code uitvoeren";
         }

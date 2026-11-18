@@ -8,7 +8,7 @@ namespace RevitMCPCommandSet.Commands
     /// <summary>
     /// Command to create tags for rooms in the current view
     /// </summary>
-    public class TagRoomsCommand : ExternalEventCommandBase
+    public class TagRoomsCommand : RevitCommandBase
     {
         private TagRoomsEventHandler _handler => (TagRoomsEventHandler)Handler;
 
@@ -43,17 +43,17 @@ namespace RevitMCPCommandSet.Commands
                     tagTypeId = parameters["tagTypeId"].ToString();
                 }
 
-                List<int> roomIds = null;
+                List<long> roomIds = null;
                 if (parameters["roomIds"] != null)
                 {
-                    roomIds = parameters["roomIds"].ToObject<List<int>>();
+                    roomIds = parameters["roomIds"].ToObject<List<long>>();
                 }
 
                 // Set parameters for the event handler
                 _handler.SetParameters(useLeader, tagTypeId, roomIds);
 
                 // Trigger external event and wait for completion
-                if (RaiseAndWaitForCompletion(15000)) // 15 second timeout
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                 {
                     return _handler.TaggingResults;
                 }

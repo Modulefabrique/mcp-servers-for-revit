@@ -1,41 +1,19 @@
 using Autodesk.Revit.UI;
-using RevitMCPSDK.API.Interfaces;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class SayHelloEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class SayHelloEventHandler : WaitableExternalEventHandlerBase
     {
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         public string Message { get; set; } = "Hello MCP!";
 
-        /// <summary>
-        /// Zet de wachtstatus terug. Moet vóór het raisen van het externe event worden aangeroepen,
-        /// zodat een snel afgeronde handler zijn signaal niet kwijtraakt.
-        /// </summary>
-        public void ResetCompletion()
+        protected override void ExecuteCore(UIApplication app)
         {
-            _resetEvent.Reset();
+            // Bewust een dialoog: dit is een testcommand (staat standaard uit in register.ts)
+            TaskDialog.Show("Revit MCP", Message);
         }
 
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
-
-        public void Execute(UIApplication app)
-        {
-            try
-            {
-                TaskDialog.Show("Revit MCP", Message);
-            }
-            finally
-            {
-                _resetEvent.Set();
-            }
-        }
-
-        public string GetName()
+        public override string GetName()
         {
             return "Say Hello";
         }

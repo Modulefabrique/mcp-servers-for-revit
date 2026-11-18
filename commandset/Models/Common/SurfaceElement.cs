@@ -22,7 +22,7 @@ public class SurfaceElement
     ///     Type-Id
     /// </summary>
     [JsonProperty("typeId")]
-    public int TypeId { get; set; } = -1;
+    public long TypeId { get; set; } = -1;
 
     /// <summary>
     ///     Begrenzing van het schaalvormige profiel

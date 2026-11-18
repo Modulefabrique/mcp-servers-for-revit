@@ -7,10 +7,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using RevitMCPCommandSet.Utils;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class OperateElementEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class OperateElementEventHandler : WaitableExternalEventHandlerBase
     {
         private UIApplication uiApp;
         private UIDocument uiDoc => uiApp.ActiveUIDocument;
@@ -18,17 +19,13 @@ namespace RevitMCPCommandSet.Services
         private Autodesk.Revit.ApplicationServices.Application app => uiApp.Application;
 
         /// <summary>
-        /// Wachtobject voor het event
-        /// </summary>
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
-        /// <summary>
         /// Aanmaakgegevens (invoergegevens)
         /// </summary>
         public OperationSetting OperationData { get; private set; }
         /// <summary>
         /// Uitvoeringsresultaat (uitvoergegevens)
         /// </summary>
-        public AIResult<string> Result { get; private set; }
+        public AIResult<object> Result { get; private set; }
 
         /// <summary>
         /// Stelt de parameters voor het aanmaken in
@@ -36,17 +33,37 @@ namespace RevitMCPCommandSet.Services
         public void SetParameters(OperationSetting data)
         {
             OperationData = data;
-            _resetEvent.Reset();
         }
-        public void Execute(UIApplication uiapp)
+        protected override void ExecuteCore(UIApplication uiapp)
         {
             uiApp = uiapp;
 
             try
             {
+                // Verwijderen staat standaard op voorbeeld: alleen met expliciet dryRun=false wordt er echt verwijderd
+                if (string.Equals(OperationData?.Action, nameof(ElementOperationType.Delete), StringComparison.OrdinalIgnoreCase) &&
+                    (OperationData.DryRun ?? true))
+                {
+                    var ids = OperationData.ElementIds
+                        .Select(id => new ElementId(id))
+                        .Where(id => uiDoc.Document.GetElement(id) != null)
+                        .ToList();
+                    if (ids.Count == 0)
+                        throw new Exception("Geen van de opgegeven elementen bestaat in het model");
+
+                    DeletePreview preview = DeletePreviewUtils.Preview(uiDoc.Document, ids);
+                    Result = new AIResult<object>
+                    {
+                        Success = true,
+                        Message = preview.Message,
+                        Response = preview
+                    };
+                    return;
+                }
+
                 bool result = ExecuteElementOperation(uiDoc, OperationData);
 
-                Result = new AIResult<string>
+                Result = new AIResult<object>
                 {
                     Success = true,
                     Message = $"Bewerking succesvol uitgevoerd",
@@ -54,32 +71,19 @@ namespace RevitMCPCommandSet.Services
             }
             catch (Exception ex)
             {
-                Result = new AIResult<string>
+                Result = new AIResult<object>
                 {
                     Success = false,
                     Message = $"Fout bij het bewerken van element: {ex.Message}",
                 };
             }
-            finally
-            {
-                _resetEvent.Set(); // Informeer de wachtende thread dat de bewerking is voltooid
-            }
         }
 
-        /// <summary>
-        /// Wacht tot het aanmaken is voltooid
-        /// </summary>
-        /// <param name="timeoutMilliseconds">Time-out (in milliseconden)</param>
-        /// <returns>Of de bewerking is voltooid vóór de time-out</returns>
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
         /// <summary>
         /// IExternalEventHandler.GetName implementatie
         /// </summary>
-        public string GetName()
+        public override string GetName()
         {
             return "Element bewerken";
         }
@@ -99,7 +103,7 @@ namespace RevitMCPCommandSet.Services
 
             Document doc = uidoc.Document;
 
-            // Zet de elementen-ID's van het type int om naar het type ElementId
+            // Zet de elementen-ID's (long) om naar het type ElementId
             ICollection<ElementId> elementIds = setting.ElementIds.Select(id => new ElementId(id)).ToList();
 
             // Bepaal het type bewerking
@@ -199,7 +203,7 @@ namespace RevitMCPCommandSet.Services
                         trans.Start();
                         targetView.IsSectionBoxActive = true;
                         targetView.SetSectionBox(boundingBox);
-                        trans.Commit();
+                        trans.CommitOrThrow();
                     }
 
                     // Verplaats naar het midden van de weergave
@@ -212,7 +216,7 @@ namespace RevitMCPCommandSet.Services
                     {
                         trans.Start();
                         SetElementsColor(doc, elementIds, setting.ColorValue);
-                        trans.Commit();
+                        trans.CommitOrThrow();
                     }
                     // Scroll naar deze elementen zodat ze zichtbaar zijn
                     uidoc.ShowElements(elementIds);
@@ -240,7 +244,7 @@ namespace RevitMCPCommandSet.Services
                             doc.ActiveView.SetElementOverrides(id, overrideSettings);
                         }
 
-                        trans.Commit();
+                        trans.CommitOrThrow();
                     }
                     return true;
 
@@ -250,7 +254,7 @@ namespace RevitMCPCommandSet.Services
                     {
                         trans.Start();
                         doc.Delete(elementIds);
-                        trans.Commit();
+                        trans.CommitOrThrow();
                     }
                     return true;
 
@@ -260,7 +264,7 @@ namespace RevitMCPCommandSet.Services
                     {
                         trans.Start();
                         doc.ActiveView.HideElements(elementIds);
-                        trans.Commit();
+                        trans.CommitOrThrow();
                     }
                     return true;
 
@@ -270,7 +274,7 @@ namespace RevitMCPCommandSet.Services
                     {
                         trans.Start();
                         doc.ActiveView.HideElementsTemporary(elementIds);
-                        trans.Commit();
+                        trans.CommitOrThrow();
                     }
                     return true;
 
@@ -280,7 +284,7 @@ namespace RevitMCPCommandSet.Services
                     {
                         trans.Start();
                         doc.ActiveView.IsolateElementsTemporary(elementIds);
-                        trans.Commit();
+                        trans.CommitOrThrow();
                     }
                     return true;
 
@@ -290,7 +294,7 @@ namespace RevitMCPCommandSet.Services
                     {
                         trans.Start();
                         doc.ActiveView.UnhideElements(elementIds);
-                        trans.Commit();
+                        trans.CommitOrThrow();
                     }
                     return true;
 
@@ -300,7 +304,7 @@ namespace RevitMCPCommandSet.Services
                     {
                         trans.Start();
                         doc.ActiveView.DisableTemporaryViewMode(TemporaryViewMode.TemporaryHideIsolate);
-                        trans.Commit();
+                        trans.CommitOrThrow();
                     }
                     return true;
 

@@ -8,16 +8,12 @@ using RevitMCPSDK.API.Interfaces;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class CreateStructuralFramingSystemEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class CreateStructuralFramingSystemEventHandler : WaitableExternalEventHandlerBase
     {
         private UIApplication uiApp;
         private UIDocument uiDoc => uiApp.ActiveUIDocument;
         private Document doc => uiDoc.Document;
 
-        /// <summary>
-        /// Event synchronization object
-        /// </summary>
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         /// <summary>
         /// Beam system creation parameters
@@ -35,10 +31,9 @@ namespace RevitMCPCommandSet.Services
         public void SetParameters(StructuralFramingSystemCreationInfo parameters)
         {
             Parameters = parameters;
-            _resetEvent.Reset();
         }
 
-        public void Execute(UIApplication uiapp)
+        protected override void ExecuteCore(UIApplication uiapp)
         {
             uiApp = uiapp;
 
@@ -174,7 +169,7 @@ namespace RevitMCPCommandSet.Services
                         }
                     }
 
-                    trans.Commit();
+                    trans.CommitOrThrow();
 
                     // 9. Get member beam IDs
                     ICollection<ElementId> beamIds = beamSystem.GetBeamIds();
@@ -187,10 +182,10 @@ namespace RevitMCPCommandSet.Services
                         beamIdsList.Add(beamId.Value);
                     }
 #else
-                    long beamSystemId = beamSystem.Id.IntegerValue;
+                    long beamSystemId = beamSystem.Id.GetValue();
                     foreach (ElementId beamId in beamIds)
                     {
-                        beamIdsList.Add(beamId.IntegerValue);
+                        beamIdsList.Add(beamId.GetValue());
                     }
 #endif
 
@@ -272,10 +267,6 @@ namespace RevitMCPCommandSet.Services
                     Message = errorDetails,
                     Response = null
                 };
-            }
-            finally
-            {
-                _resetEvent.Set(); // Signal completion
             }
         }
 
@@ -504,18 +495,11 @@ namespace RevitMCPCommandSet.Services
             }
         }
 
-        /// <summary>
-        /// Wait for beam system creation to complete
-        /// </summary>
-        public bool WaitForCompletion(int timeoutMilliseconds = 15000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
         /// <summary>
         /// Get handler name
         /// </summary>
-        public string GetName()
+        public override string GetName()
         {
             return "Create Structural Framing System";
         }

@@ -9,14 +9,11 @@ using System.Threading.Tasks;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class GetSelectedElementsEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class GetSelectedElementsEventHandler : WaitableExternalEventHandlerBase
     {
         // Uitvoeringsresultaat
         public List<Models.Common.ElementInfo> ResultElements { get; private set; }
 
-        // Object voor statussynchronisatie
-        public bool TaskCompleted { get; private set; }
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         // Beperk het aantal geretourneerde elementen
         public int? Limit { get; set; }
@@ -25,23 +22,15 @@ namespace RevitMCPCommandSet.Services
         public string ErrorMessage { get; private set; }
 
         /// <summary>
-        /// Zet de wachtstatus terug. Moet vóór het raisen van het externe event worden aangeroepen,
-        /// zodat een snel afgeronde handler zijn signaal niet kwijtraakt.
+        /// Zet het resultaat van een vorig verzoek terug. Aanroepen vóór het instellen van nieuwe parameters.
         /// </summary>
         public void ResetCompletion()
         {
-            TaskCompleted = false;
             ErrorMessage = null;
-            _resetEvent.Reset();
         }
 
-        // Implementatie van de IWaitableExternalEventHandler-interface
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
-        public void Execute(UIApplication app)
+        protected override void ExecuteCore(UIApplication app)
         {
             try
             {
@@ -64,7 +53,7 @@ namespace RevitMCPCommandSet.Services
 #if REVIT2024_OR_GREATER
                     Id = element.Id.Value,
 #else
-                    Id = element.Id.IntegerValue,
+                    Id = element.Id.GetValue(),
 #endif
                     UniqueId = element.UniqueId,
                     Name = element.Name,
@@ -76,14 +65,9 @@ namespace RevitMCPCommandSet.Services
                 ErrorMessage = "Ophalen van geselecteerde elementen mislukt: " + ex.Message;
                 ResultElements = new List<Models.Common.ElementInfo>();
             }
-            finally
-            {
-                TaskCompleted = true;
-                _resetEvent.Set();
-            }
         }
 
-        public string GetName()
+        public override string GetName()
         {
             return "Geselecteerde elementen ophalen";
         }

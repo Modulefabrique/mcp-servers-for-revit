@@ -5,16 +5,12 @@ using RevitMCPSDK.API.Interfaces;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class ColorSplashEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class ColorSplashEventHandler : WaitableExternalEventHandlerBase
     {
         private UIApplication uiApp;
         private UIDocument uiDoc => uiApp.ActiveUIDocument;
         private Document doc => uiDoc.Document;
 
-        /// <summary>
-        /// Event wait object
-        /// </summary>
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         /// <summary>
         /// Results data
@@ -36,10 +32,9 @@ namespace RevitMCPCommandSet.Services
             _parameterName = parameterName;
             _useGradient = useGradient;
             _customColors = customColors;
-            _resetEvent.Reset();
         }
 
-        public void Execute(UIApplication uiapp)
+        protected override void ExecuteCore(UIApplication uiapp)
         {
             uiApp = uiapp;
 
@@ -201,7 +196,7 @@ namespace RevitMCPCommandSet.Services
                         });
                     }
 
-                    transaction.Commit();
+                    transaction.CommitOrThrow();
 
                     ColoringResults = new
                     {
@@ -220,26 +215,13 @@ namespace RevitMCPCommandSet.Services
                     message = $"Error: {ex.Message}"
                 };
             }
-            finally
-            {
-                _resetEvent.Set(); // Signal that operation is complete
-            }
         }
 
-        /// <summary>
-        /// Wait for operation to complete
-        /// </summary>
-        /// <param name="timeoutMilliseconds">Timeout in milliseconds</param>
-        /// <returns>Whether operation completed within timeout</returns>
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
         /// <summary>
         /// IExternalEventHandler.GetName implementation
         /// </summary>
-        public string GetName()
+        public override string GetName()
         {
             return "Color Splash";
         }

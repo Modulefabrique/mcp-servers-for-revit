@@ -6,29 +6,21 @@ using RevitMCPSDK.API.Interfaces;
 
 namespace RevitMCPCommandSet.Services.DataExtraction
 {
-    public class ExportRoomDataEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class ExportRoomDataEventHandler : WaitableExternalEventHandlerBase
     {
         private bool _includeUnplacedRooms;
         private bool _includeNotEnclosedRooms;
 
         public ExportRoomDataResult ResultInfo { get; private set; }
-        public bool TaskCompleted { get; private set; }
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         public void SetParameters(bool includeUnplacedRooms = false, bool includeNotEnclosedRooms = false)
         {
             _includeUnplacedRooms = includeUnplacedRooms;
             _includeNotEnclosedRooms = includeNotEnclosedRooms;
-            TaskCompleted = false;
-            _resetEvent.Reset();
         }
 
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
-        public void Execute(UIApplication app)
+        protected override void ExecuteCore(UIApplication app)
         {
             try
             {
@@ -57,7 +49,7 @@ namespace RevitMCPCommandSet.Services.DataExtraction
 #if REVIT2024_OR_GREATER
                         Id = room.Id.Value,
 #else
-                        Id = room.Id.IntegerValue,
+                        Id = room.Id.GetValue(),
 #endif
                         UniqueId = room.UniqueId,
                         Name = room.get_Parameter(BuiltInParameter.ROOM_NAME)?.AsString() ?? "",
@@ -94,14 +86,9 @@ namespace RevitMCPCommandSet.Services.DataExtraction
                     Message = $"Error exporting room data: {ex.Message}"
                 };
             }
-            finally
-            {
-                TaskCompleted = true;
-                _resetEvent.Set();
-            }
         }
 
-        public string GetName()
+        public override string GetName()
         {
             return "Export Room Data";
         }

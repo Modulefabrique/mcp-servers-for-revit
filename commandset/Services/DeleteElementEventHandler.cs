@@ -1,10 +1,11 @@
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using RevitMCPSDK.API.Interfaces;
+using RevitMCPCommandSet.Utils;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class DeleteElementEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class DeleteElementEventHandler : WaitableExternalEventHandlerBase
     {
         // Uitvoeringsresultaat
         public bool IsSuccess { get; private set; }
@@ -15,30 +16,24 @@ namespace RevitMCPCommandSet.Services
         public string ErrorMessage { get; private set; }
         // Waarschuwing voor ongeldige of niet-bestaande ID's
         public string Warning { get; private set; }
-        // Object voor statussynchronisatie
-        public bool TaskCompleted { get; private set; }
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
         // Array met de te verwijderen elementen-ID's
         public string[] ElementIds { get; set; }
+        // Alleen een voorbeeld tonen, niets verwijderen
+        public bool DryRun { get; set; }
+        // Resultaat bij DryRun
+        public DeletePreview Preview { get; private set; }
 
         /// <summary>
-        /// Zet de wachtstatus terug. Moet vóór het raisen van het externe event worden aangeroepen,
-        /// zodat een snel afgeronde handler zijn signaal niet kwijtraakt.
+        /// Zet het resultaat van een vorig verzoek terug. Aanroepen vóór het instellen van nieuwe parameters.
         /// </summary>
         public void ResetCompletion()
         {
-            TaskCompleted = false;
             ErrorMessage = null;
             Warning = null;
-            _resetEvent.Reset();
+            Preview = null;
         }
 
-        // Implementatie van de IWaitableExternalEventHandler-interface
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
-        public void Execute(UIApplication app)
+        protected override void ExecuteCore(UIApplication app)
         {
             try
             {
@@ -55,7 +50,7 @@ namespace RevitMCPCommandSet.Services
                 List<string> invalidIds = new List<string>();
                 foreach (var idStr in ElementIds)
                 {
-                    if (int.TryParse(idStr, out int elementIdValue))
+                    if (long.TryParse(idStr, out long elementIdValue))
                     {
                         var elementId = new ElementId(elementIdValue);
                         // Controleer of het element bestaat
@@ -78,7 +73,12 @@ namespace RevitMCPCommandSet.Services
                     Warning = $"De volgende ID's zijn ongeldig of het element bestaat niet: {string.Join(", ", invalidIds)}";
                 }
                 // Voer de verwijdering uit als er te verwijderen elementen zijn
-                if (elementIdsToDelete.Count > 0)
+                if (elementIdsToDelete.Count > 0 && DryRun)
+                {
+                    Preview = DeletePreviewUtils.Preview(doc, elementIdsToDelete);
+                    IsSuccess = true;
+                }
+                else if (elementIdsToDelete.Count > 0)
                 {
                     using (var transaction = new Transaction(doc, "Delete Elements"))
                     {
@@ -88,7 +88,7 @@ namespace RevitMCPCommandSet.Services
                         ICollection<ElementId> deletedIds = doc.Delete(elementIdsToDelete);
                         DeletedCount = deletedIds.Count;
 
-                        transaction.Commit();
+                        transaction.CommitOrThrow();
                     }
                     IsSuccess = true;
                 }
@@ -104,13 +104,8 @@ namespace RevitMCPCommandSet.Services
                 ErrorMessage = "Verwijderen van elementen mislukt: " + ex.Message;
                 IsSuccess = false;
             }
-            finally
-            {
-                TaskCompleted = true;
-                _resetEvent.Set();
-            }
         }
-        public string GetName()
+        public override string GetName()
         {
             return "Element verwijderen";
         }

@@ -5,7 +5,7 @@ using RevitMCPSDK.API.Base;
 
 namespace RevitMCPCommandSet.Commands.Access
 {
-    public class GetCurrentViewElementsCommand : ExternalEventCommandBase
+    public class GetCurrentViewElementsCommand : RevitCommandBase
     {
         private GetCurrentViewElementsEventHandler _handler => (GetCurrentViewElementsEventHandler)Handler;
 
@@ -24,14 +24,15 @@ namespace RevitMCPCommandSet.Commands.Access
                 List<string> modelCategoryList = parameters?["modelCategoryList"]?.ToObject<List<string>>() ?? new List<string>();
                 List<string> annotationCategoryList = parameters?["annotationCategoryList"]?.ToObject<List<string>>() ?? new List<string>();
                 bool includeHidden = parameters?["includeHidden"]?.Value<bool>() ?? false;
-                // Geen fallbackwaarde: zonder expliciete limiet worden alle elementen geretourneerd
-                int? limit = parameters?["limit"]?.Value<int>();
+                // Paginagrootte en offset; zonder limiet geldt de standaardlimiet van de handler
+                int? limit = parameters?["limit"]?.Value<int?>();
+                int offset = parameters?["offset"]?.Value<int?>() ?? 0;
 
                 // Queryparameters instellen
-                _handler.SetQueryParameters(modelCategoryList, annotationCategoryList, includeHidden, limit);
+                _handler.SetQueryParameters(modelCategoryList, annotationCategoryList, includeHidden, limit, offset);
 
                 // Extern event activeren en wachten op voltooiing
-                if (RaiseAndWaitForCompletion(60000)) // 60 seconden time-out
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Read))
                 {
                     if (_handler.ErrorMessage != null)
                         throw new Exception(_handler.ErrorMessage);

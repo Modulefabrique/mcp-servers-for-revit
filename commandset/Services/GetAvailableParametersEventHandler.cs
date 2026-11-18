@@ -6,7 +6,7 @@ using RevitMCPSDK.API.Interfaces;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class GetAvailableParametersEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class GetAvailableParametersEventHandler : WaitableExternalEventHandlerBase
     {
         // Op te vragen elementen
         public List<string> ElementIds { get; set; }
@@ -14,31 +14,20 @@ namespace RevitMCPCommandSet.Services
         // Uitvoeringsresultaat
         public AvailableParametersResult Result { get; private set; }
 
-        // Object voor statussynchronisatie
-        public bool TaskCompleted { get; private set; }
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         // Foutmelding bij mislukken (wordt teruggegeven in de response i.p.v. een dialoog te tonen)
         public string ErrorMessage { get; private set; }
 
         /// <summary>
-        /// Zet de wachtstatus terug. Moet vóór het raisen van het externe event worden aangeroepen,
-        /// zodat een snel afgeronde handler zijn signaal niet kwijtraakt.
+        /// Zet het resultaat van een vorig verzoek terug. Aanroepen vóór het instellen van nieuwe parameters.
         /// </summary>
         public void ResetCompletion()
         {
-            TaskCompleted = false;
             ErrorMessage = null;
-            _resetEvent.Reset();
         }
 
-        // Implementatie van de IWaitableExternalEventHandler-interface
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
-        public void Execute(UIApplication app)
+        protected override void ExecuteCore(UIApplication app)
         {
             Result = new AvailableParametersResult();
             try
@@ -113,14 +102,9 @@ namespace RevitMCPCommandSet.Services
             {
                 ErrorMessage = "Ophalen van beschikbare parameters mislukt: " + ex.Message;
             }
-            finally
-            {
-                TaskCompleted = true;
-                _resetEvent.Set();
-            }
         }
 
-        public string GetName()
+        public override string GetName()
         {
             return "Beschikbare parameters ophalen";
         }

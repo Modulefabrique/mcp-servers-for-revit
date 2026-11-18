@@ -1,114 +1,94 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerCreateStructuralFramingSystemTool(server: McpServer) {
-  server.tool(
-    "create_structural_framing_system",
-    "Create a structural beam framing system in Revit. Generates beams within a rectangular boundary at fixed spacing intervals. The system uses Revit's BeamSystem API to create properly connected beam layouts. All units are in millimeters (mm).",
-    {
+  defineRevitTool(server, {
+    name: "create_structural_framing_system",
+    title: "Create beam system",
+    kind: "write",
+    description:
+      "Create a Revit beam system that fills a rectangle with parallel structural framing beams at a fixed " +
+      "spacing, in one transaction. All coordinates and distances are in millimeters, in model coordinates " +
+      "relative to Revit's internal origin. Height: 'elevation' is the absolute height of the beam system; " +
+      "it is placed on the existing level nearest to that elevation and the beams get a z-offset for the " +
+      "difference. levelName is required but currently NOT used to choose the level, and no level is " +
+      "created; the level actually used is reported in the result. directionEdge selects the edge of the " +
+      "rectangle that is passed to Revit as the beam system's direction edge ('bottom'/'top' lie along X, " +
+      "'left'/'right' along Y); Revit lays out the beams parallel to that edge, at 'spacing' measured " +
+      "perpendicular to it. beamTypeName is matched as a case-insensitive part of the type name, family name " +
+      "or 'Family: Type'; without a match the first structural framing type is used. Requires at least one " +
+      "structural framing family loaded in the project, and works best with a floor or structural plan as " +
+      "the active view. Each call creates a new beam system. Returns Success, Message (summary and warnings) " +
+      "and Response = beamSystemId, beamIds, beamCount, actualSpacing (mm), usedBeamTypeName and levelName.",
+    schema: {
       levelName: z
         .string()
         .describe(
-          "Name of the level to place the beam system on (e.g., 'Level 1', 'Level 2'). If the level doesn't exist but follows 'Level N' pattern, it will be auto-created at 4000mm floor-to-floor height."
+          "Must be non-empty, but is currently not used: the level nearest to 'elevation' is used instead"
         ),
       xMin: z
         .number()
-        .describe("Minimum X coordinate of the rectangular boundary in millimeters"),
+        .describe("Minimum X coordinate of the rectangular boundary in mm (must be less than xMax)"),
       xMax: z
         .number()
-        .describe("Maximum X coordinate of the rectangular boundary in millimeters"),
+        .describe("Maximum X coordinate of the rectangular boundary in mm"),
       yMin: z
         .number()
-        .describe("Minimum Y coordinate of the rectangular boundary in millimeters"),
+        .describe("Minimum Y coordinate of the rectangular boundary in mm (must be less than yMax)"),
       yMax: z
         .number()
-        .describe("Maximum Y coordinate of the rectangular boundary in millimeters"),
+        .describe("Maximum Y coordinate of the rectangular boundary in mm"),
       spacing: z
         .number()
         .positive()
-        .describe("Spacing between beams in millimeters"),
+        .describe("Distance between beams in mm"),
       directionEdge: z
         .enum(["bottom", "right", "top", "left"])
         .default("bottom")
         .describe(
-          "Which edge defines the beam direction. Beams run perpendicular to this edge. 'bottom'/'top' = beams run in Y direction, 'left'/'right' = beams run in X direction."
+          "Edge of the rectangle used as the beam system's direction edge: 'bottom'/'top' (along X) or 'left'/'right' (along Y)"
         ),
       layoutRule: z
         .enum(["fixed_distance"])
         .default("fixed_distance")
-        .describe(
-          "Layout rule type. Currently only 'fixed_distance' is supported."
-        ),
+        .describe("Layout rule; only 'fixed_distance' is supported"),
       justify: z
         .enum(["beginning", "center", "end", "directionline"])
         .default("center")
         .describe(
-          "Beam justification within the layout. 'center' places beams symmetrically, 'beginning'/'end' align to boundary edges."
+          "Justification of the beam layout within the boundary: 'center' (symmetric), 'beginning', 'end' or 'directionline'"
         ),
       beamTypeName: z
         .string()
         .optional()
         .describe(
-          "Name of the beam family type to use (e.g., 'W10x12', 'W-Wide Flange'). If not provided, the first available structural framing type will be used."
+          "Part of the beam type or family name (e.g. 'HEA200'). If omitted or not found, the first structural framing type is used"
         ),
       elevation: z
         .number()
         .default(0)
         .describe(
-          "Elevation offset from the level in millimeters. Use this to adjust the vertical position of the beam system."
+          "Absolute elevation of the beam system in mm; also determines the level used (the nearest existing level)"
         ),
       is3d: z
         .boolean()
         .default(false)
-        .describe(
-          "Whether to create a 3D beam system. Set to true for sloped or non-planar systems."
-        ),
+        .describe("Create a 3D beam system (for sloped or non-planar systems)"),
     },
-    async (args, extra) => {
-      const params = {
-        levelName: args.levelName,
-        xMin: args.xMin,
-        xMax: args.xMax,
-        yMin: args.yMin,
-        yMax: args.yMax,
-        spacing: args.spacing,
-        directionEdge: args.directionEdge,
-        layoutRule: args.layoutRule,
-        justify: args.justify,
-        beamTypeName: args.beamTypeName,
-        elevation: args.elevation,
-        is3d: args.is3d,
-      };
-
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand(
-            "create_structural_framing_system",
-            params
-          );
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Create structural framing system failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+    buildParams: (args) => ({
+      levelName: args.levelName,
+      xMin: args.xMin,
+      xMax: args.xMax,
+      yMin: args.yMin,
+      yMax: args.yMax,
+      spacing: args.spacing,
+      directionEdge: args.directionEdge,
+      layoutRule: args.layoutRule,
+      justify: args.justify,
+      beamTypeName: args.beamTypeName,
+      elevation: args.elevation,
+      is3d: args.is3d,
+    }),
+  });
 }

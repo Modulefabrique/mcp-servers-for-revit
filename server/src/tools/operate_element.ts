@@ -1,63 +1,59 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerOperateElementTool(server: McpServer) {
-  server.tool(
-    "operate_element",
-    "Operate on Revit elements by performing actions such as select, selectionBox, setColor, setTransparency, delete, hide, etc.",
-    {
+  defineRevitTool(server, {
+    name: "operate_element",
+    title: "Select, show, hide, colour or delete elements",
+    // Destructief vanwege de actie Delete; de overige acties wijzigen alleen selectie/weergave
+    kind: "destructive",
+    description:
+      "Perform one action on a list of Revit elements, mostly in the ACTIVE view. Take the element ids " +
+      "from ai_element_filter, get_selected_elements or get_current_view_elements; never invent ids. " +
+      "Actions (case-insensitive): " +
+      "Select - make the elements the current selection in Revit. " +
+      "SelectionBox - set a section box around the elements (+1 ft margin) in the active 3D view, or " +
+      "switch to the default {3D} view first if the active view is not 3D. " +
+      "SetColor - override projection/cut line and surface pattern colour in the active view (colorValue). " +
+      "SetTransparency - override surface transparency in the active view (transparencyValue). " +
+      "Hide / Unhide - permanently hide or unhide the elements in the active view. " +
+      "TempHide / Isolate - temporary hide or isolate in the active view; ResetIsolate ends temporary " +
+      "hide/isolate (elementIds may be empty for ResetIsolate). " +
+      "Delete - remove the elements from the model. Delete is SAFE BY DEFAULT: unless dryRun=false is " +
+      "passed it only returns a preview (requested elements plus the dependent elements Revit would " +
+      "delete with them) and changes nothing. Show the preview to the user, ask for confirmation, and " +
+      "only then repeat the call with dryRun=false. For deleting, delete_element does the same. " +
+      "Each action except Select runs in its own Revit transaction.",
+    schema: {
       data: z
         .object({
           elementIds: z
-            .array(z
-              .number()
-              .describe("A valid Revit element ID to operate on")
-            )
-            .describe("Array of Revit element IDs to perform the specified action on"),
+            .array(z.number().describe("A Revit element id"))
+            .describe("Revit element ids to perform the action on"),
           action: z
             .string()
-            .describe("The operation to perform on elements. Valid values: Select, SelectionBox, SetColor, SetTransparency, Delete, Hide, TempHide, Isolate, Unhide, ResetIsolate, Highlight. Select enables direct element selection in the active view. SelectionBox allows selection of elements by drawing a rectangular window in the view. SetColor changes the color of elements (requires elementColor parameter). SetTransparency adjusts element transparency (requires transparencyValue parameter). Highlight is a convenience operation that sets elements to red color (internally calls SetColor with red). Delete permanently removes elements from the project. Hide makes elements invisible in the current view until explicitly shown. TempHide temporarily hides elements in the current view. Isolate displays only selected elements while hiding all others. Unhide reveals previously hidden elements. ResetIsolate restores normal visibility to the view."),
+            .describe(
+              "The action: Select, SelectionBox, SetColor, SetTransparency, Delete, Hide, TempHide, " +
+                "Isolate, Unhide or ResetIsolate."
+            ),
           transparencyValue: z
             .number()
             .default(50)
-            .describe("Transparency value (0-100) for SetTransparency action. Higher values increase transparency."),
+            .describe("Only for SetTransparency: surface transparency 0-100 (higher = more transparent)."),
           colorValue: z
             .array(z.number())
             .default([255, 0, 0])
-            .describe("RGB color values for SetColor action. Default is red [255,0,0].")
+            .describe("Only for SetColor: RGB values 0-255, e.g. [255, 0, 0] for red (the default)."),
+          dryRun: z
+            .boolean()
+            .optional()
+            .describe(
+              "Only for Delete. Omitted or true: preview only, nothing is deleted. false: really " +
+                "delete - only after the user has confirmed the preview. Ignored by other actions."
+            ),
         })
-        .describe("Parameters for operating on Revit elements with specific actions"),
+        .describe("The elements and the action to perform on them"),
     },
-    async (args, extra) => {
-      const params = args;
-
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand(
-            "operate_element",
-            params
-          );
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Operate elements failed: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-        };
-      }
-    }
-  );
+  });
 }

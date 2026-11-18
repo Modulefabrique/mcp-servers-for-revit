@@ -1,22 +1,33 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerGetAvailableFamilyTypesTool(server: McpServer) {
-  server.tool(
-    "get_available_family_types",
-    "Get available family types in the current Revit project. You can filter by category and family name, and limit the number of returned types.",
-    {
+  defineRevitTool(server, {
+    name: "get_available_family_types",
+    title: "List family types",
+    kind: "read",
+    description:
+      "List the element types available in the project: all loadable family types (doors, windows, " +
+      "furniture, columns, structural framing, tags, ...) plus wall, floor, roof, ceiling and curtain system " +
+      "types. Other system family types (e.g. duct or pipe types) are not listed. Use this to get a valid " +
+      "typeId before calling create_point_based_element, create_line_based_element or " +
+      "create_surface_based_element, or a tag type id for tagging; never invent type ids. Returns per type: " +
+      "FamilyTypeId, UniqueId, FamilyName, TypeName and Category (category name in Revit's UI language). " +
+      "Filter with categoryList (BuiltInCategory names; names that are not valid are ignored, and if none is " +
+      "valid no category filter is applied) and familyNameFilter; use limit to cap the result size in large " +
+      "projects. Changes nothing.",
+    schema: {
       categoryList: z
         .array(z.string())
         .optional()
         .describe(
-          "List of Revit category names to filter by (e.g., 'OST_Walls', 'OST_Doors', 'OST_Furniture')"
+          "BuiltInCategory names to filter by (e.g. 'OST_Walls', 'OST_Doors', 'OST_Furniture', 'OST_StructuralFraming')"
         ),
       familyNameFilter: z
         .string()
         .optional()
-        .describe("Filter family types by family name (partial match)"),
+        .describe("Case-insensitive text that must occur in the family name or the type name"),
       limit: z
         .number()
         .optional()
@@ -24,41 +35,10 @@ export function registerGetAvailableFamilyTypesTool(server: McpServer) {
           "Maximum number of family types to return. Omit for no limit (all matching family types are returned)."
         ),
     },
-    async (args, extra) => {
-      const params = {
-        categoryList: args.categoryList || [],
-        familyNameFilter: args.familyNameFilter || "",
-        limit: args.limit,
-      };
-
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand(
-            "get_available_family_types",
-            params
-          );
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `get available family types failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+    buildParams: (args) => ({
+      categoryList: args.categoryList || [],
+      familyNameFilter: args.familyNameFilter || "",
+      limit: args.limit,
+    }),
+  });
 }

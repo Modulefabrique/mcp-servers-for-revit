@@ -10,7 +10,7 @@ namespace RevitMCPCommandSet.Commands
     /// in instance- en type-parameters. Bedoeld om vooraf te bepalen welke parameters met get_parameters
     /// opgehaald of met set_parameters aangepast kunnen worden.
     /// </summary>
-    public class GetAvailableParametersCommand : ExternalEventCommandBase
+    public class GetAvailableParametersCommand : RevitCommandBase
     {
         private GetAvailableParametersEventHandler _handler => (GetAvailableParametersEventHandler)Handler;
 
@@ -36,7 +36,7 @@ namespace RevitMCPCommandSet.Commands
                 _handler.ElementIds = elementIds;
 
                 // Extern event activeren en wachten op voltooiing
-                if (RaiseAndWaitForCompletion(60000)) // 60 seconden time-out
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Read))
                 {
                     if (_handler.ErrorMessage != null)
                         throw new Exception(_handler.ErrorMessage);

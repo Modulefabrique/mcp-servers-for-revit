@@ -32,14 +32,13 @@ namespace RevitMCPCommandSet.Services.AnnotationComponents;
 /// <summary>
 ///     Handles creation of dimension elements in Revit
 /// </summary>
-public class CreateDimensionEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+public class CreateDimensionEventHandler : WaitableExternalEventHandlerBase
 {
     #region Fields
 
     private UIApplication _uiApp;
     private UIDocument UiDoc => _uiApp.ActiveUIDocument;
     private Document Doc => UiDoc.Document;
-    private readonly ManualResetEvent _resetEvent = new(false);
     private const double MILLIMETERS_TO_FEET = 1.0 / 304.8;
 
     #endregion
@@ -54,7 +53,7 @@ public class CreateDimensionEventHandler : IExternalEventHandler, IWaitableExter
     /// <summary>
     ///     Result of the execution
     /// </summary>
-    public AIResult<List<int>> Result { get; private set; }
+    public AIResult<List<long>> Result { get; private set; }
 
     #endregion
 
@@ -67,19 +66,18 @@ public class CreateDimensionEventHandler : IExternalEventHandler, IWaitableExter
     public void SetParameters(List<DimensionCreationInfo> dimensions)
     {
         DimensionsToCreate = dimensions;
-        _resetEvent.Reset();
     }
 
     /// <summary>
     ///     Executes the dimension creation process
     /// </summary>
     /// <param name="app">UIApplication instance</param>
-    public void Execute(UIApplication app)
+    protected override void ExecuteCore(UIApplication app)
     {
         _uiApp = app;
         try
         {
-            var createdDimensionIds = new List<int>();
+            var createdDimensionIds = new List<long>();
 
             // Process each dimension in the list
             foreach (var dimInfo in DimensionsToCreate)
@@ -190,21 +188,21 @@ public class CreateDimensionEventHandler : IExternalEventHandler, IWaitableExter
                             // Apply additional parameters
                             ApplyDimensionParameters(dimension, dimInfo);
 
-                            createdDimensionIds.Add(dimension.Id.GetIntValue());
+                            createdDimensionIds.Add(dimension.Id.GetValue());
                         }
 
-                        transaction.Commit();
+                        transaction.CommitOrThrow();
                     }
                     catch
                     {
-                        transaction.RollBack();
+                        transaction.RollBackIfStarted();
                         throw;
                     }
                 }
             }
 
             // Set successful result
-            Result = new AIResult<List<int>>
+            Result = new AIResult<List<long>>
             {
                 Success = true,
                 Message = $"Successfully created {createdDimensionIds.Count} dimensions. ElementIds saved in Response.",
@@ -214,35 +212,21 @@ public class CreateDimensionEventHandler : IExternalEventHandler, IWaitableExter
         catch (Exception ex)
         {
             // Set error result
-            Result = new AIResult<List<int>>
+            Result = new AIResult<List<long>>
             {
                 Success = false,
                 Message = $"Error creating dimensions: {ex.Message}",
-                Response = new List<int>()
+                Response = new List<long>()
             };
-        }
-        finally
-        {
-            // Mark as completed
-            _resetEvent.Set();
         }
     }
 
-    /// <summary>
-    ///     Waits for completion of the operation
-    /// </summary>
-    /// <param name="timeoutMilliseconds">Timeout in milliseconds</param>
-    /// <returns>True if operation completed within timeout</returns>
-    public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-    {
-        return _resetEvent.WaitOne(timeoutMilliseconds);
-    }
 
     /// <summary>
     ///     Gets the name of the handler
     /// </summary>
     /// <returns>Handler name</returns>
-    public string GetName()
+    public override string GetName()
     {
         return "Create Dimension";
     }

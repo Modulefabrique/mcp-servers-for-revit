@@ -6,16 +6,12 @@ using RevitMCPSDK.API.Interfaces;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class CreateLineElementEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class CreateLineElementEventHandler : WaitableExternalEventHandlerBase
     {
         private UIApplication uiApp;
         private UIDocument uiDoc => uiApp.ActiveUIDocument;
         private Document doc => uiDoc.Document;
         private Autodesk.Revit.ApplicationServices.Application app => uiApp.Application;
-        /// <summary>
-        /// Event-wachtobject
-        /// </summary>
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
         /// <summary>
         /// Aan te maken data (invoerdata)
         /// </summary>
@@ -23,7 +19,7 @@ namespace RevitMCPCommandSet.Services
         /// <summary>
         /// Uitvoeringsresultaat (uitvoerdata)
         /// </summary>
-        public AIResult<List<int>> Result { get; private set; }
+        public AIResult<List<long>> Result { get; private set; }
         private List<string> _warnings = new List<string>();
 
         public string _wallName = "Algemeen - ";
@@ -35,19 +31,18 @@ namespace RevitMCPCommandSet.Services
         public void SetParameters(List<LineElement> data)
         {
             CreatedInfo = data;
-            _resetEvent.Reset();
         }
-        public void Execute(UIApplication uiapp)
+        protected override void ExecuteCore(UIApplication uiapp)
         {
             uiApp = uiapp;
 
             try
             {
-                var elementIds = new List<int>();
+                var elementIds = new List<long>();
                 _warnings.Clear();
                 foreach (var data in CreatedInfo)
                 {
-                    int requestedTypeId = data.TypeId;
+                    long requestedTypeId = data.TypeId;
 
                     // Stap 0: bouwdeeltype ophalen
                     BuiltInCategory builtInCategory = BuiltInCategory.INVALID;
@@ -186,7 +181,7 @@ namespace RevitMCPCommandSet.Services
                                 );
                                 if (wall != null)
                                 {
-                                    elementIds.Add(wall.Id.GetIntValue());
+                                    elementIds.Add(wall.Id.GetValue());
                                 }
                                 break;
                             case BuiltInCategory.OST_DuctCurves:
@@ -214,7 +209,7 @@ namespace RevitMCPCommandSet.Services
                                         Parameter offsetParam = duct.get_Parameter(BuiltInParameter.RBS_OFFSET_PARAM);
                                         if (offsetParam != null)
                                             offsetParam.Set(baseOffset);
-                                        elementIds.Add(duct.Id.GetIntValue());
+                                        elementIds.Add(duct.Id.GetValue());
                                     }
                                 }
                                 break;
@@ -226,12 +221,12 @@ namespace RevitMCPCommandSet.Services
                                 var instance = doc.CreateInstance(symbol, null, JZLine.ToLine(data.LocationLine), baseLevel, topLevel, baseOffset, topOffset);
                                 if (instance != null)
                                 {
-                                    elementIds.Add(instance.Id.GetIntValue());
+                                    elementIds.Add(instance.Id.GetValue());
                                 }
                                 break;
                         }
                         //doc.Refresh();
-                        transaction.Commit();
+                        transaction.CommitOrThrow();
                     }
                 }
                 string message = $"Successfully created {elementIds.Count} element(s).";
@@ -239,7 +234,7 @@ namespace RevitMCPCommandSet.Services
                 {
                     message += "\n\n⚠ Warnings:\n  • " + string.Join("\n  • ", _warnings);
                 }
-                Result = new AIResult<List<int>>
+                Result = new AIResult<List<long>>
                 {
                     Success = true,
                     Message = message,
@@ -248,32 +243,19 @@ namespace RevitMCPCommandSet.Services
             }
             catch (Exception ex)
             {
-                Result = new AIResult<List<int>>
+                Result = new AIResult<List<long>>
                 {
                     Success = false,
                     Message = $"Fout bij het aanmaken van lijnelement: {ex.Message}",
                 };
             }
-            finally
-            {
-                _resetEvent.Set(); // Meldt het wachtende thread dat de bewerking is voltooid
-            }
         }
 
-        /// <summary>
-        /// Wacht tot het aanmaken is voltooid
-        /// </summary>
-        /// <param name="timeoutMilliseconds">Time-out (milliseconden)</param>
-        /// <returns>Of de bewerking is voltooid vóór de time-out</returns>
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
         /// <summary>
         /// IExternalEventHandler.GetName-implementatie
         /// </summary>
-        public string GetName()
+        public override string GetName()
         {
             return "Lijnelement aanmaken";
         }

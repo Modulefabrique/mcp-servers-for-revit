@@ -7,7 +7,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
     /// <summary>
     /// Commandoklasse die de uitvoering van code afhandelt
     /// </summary>
-    public class ExecuteCodeCommand : ExternalEventCommandBase
+    public class ExecuteCodeCommand : RevitCommandBase
     {
         private ExecuteCodeEventHandler _handler => (ExecuteCodeEventHandler)Handler;
 
@@ -38,7 +38,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
                 _handler.SetExecutionParameters(code, executionParameters, transactionMode);
 
                 // Extern event activeren en wachten op voltooiing
-                if (RaiseAndWaitForCompletion(60000)) // 1 minuut time-out
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Heavy))
                 {
                     return _handler.ResultInfo;
                 }

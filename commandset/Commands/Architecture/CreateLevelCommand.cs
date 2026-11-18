@@ -9,7 +9,7 @@ namespace RevitMCPCommandSet.Commands.Architecture
     /// <summary>
     /// Command to create levels in Revit with automatic floor plan view generation
     /// </summary>
-    public class CreateLevelCommand : ExternalEventCommandBase
+    public class CreateLevelCommand : RevitCommandBase
     {
         private CreateLevelEventHandler _handler => (CreateLevelEventHandler)Handler;
 
@@ -40,7 +40,7 @@ namespace RevitMCPCommandSet.Commands.Architecture
                 _handler.SetParameters(data);
 
                 // Trigger external event and wait for completion
-                if (RaiseAndWaitForCompletion(15000)) // 15 second timeout
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                 {
                     return _handler.Result;
                 }

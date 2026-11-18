@@ -6,7 +6,7 @@ using RevitMCPSDK.API.Base;
 
 namespace RevitMCPCommandSet.Commands
 {
-    public class CreateGridCommand : ExternalEventCommandBase
+    public class CreateGridCommand : RevitCommandBase
     {
         private CreateGridEventHandler _handler => (CreateGridEventHandler)Handler;
 
@@ -44,7 +44,7 @@ namespace RevitMCPCommandSet.Commands
                 _handler.SetParameters(data);
 
                 // Wait for completion with 10 second timeout
-                if (RaiseAndWaitForCompletion(10000))
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                 {
                     return _handler.Result;
                 }

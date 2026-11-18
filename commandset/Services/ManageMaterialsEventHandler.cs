@@ -13,7 +13,7 @@ namespace RevitMCPCommandSet.Services
     /// MaterialOperationsUtils; deze handler haalt alleen het actieve document op en bewaart het
     /// resultaat (camelCase, zonder lege velden) of de foutmelding.
     /// </summary>
-    public class ManageMaterialsEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class ManageMaterialsEventHandler : WaitableExternalEventHandlerBase
     {
         private static readonly JsonSerializer ResultSerializer = JsonSerializer.Create(new JsonSerializerSettings
         {
@@ -28,29 +28,18 @@ namespace RevitMCPCommandSet.Services
         public JObject Result { get; set; }
         public string Error { get; set; }
 
-        // Object voor statussynchronisatie
-        public bool TaskCompleted { get; private set; }
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         /// <summary>
-        /// Zet de wachtstatus en het vorige resultaat terug. Moet vóór het raisen van het externe event
-        /// worden aangeroepen, zodat een snel afgeronde handler zijn signaal niet kwijtraakt.
+        /// Zet het resultaat van een vorig verzoek terug. Aanroepen vóór het instellen van nieuwe parameters.
         /// </summary>
         public void ResetCompletion()
         {
-            TaskCompleted = false;
             Result = null;
             Error = null;
-            _resetEvent.Reset();
         }
 
-        // Implementatie van de IWaitableExternalEventHandler-interface
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
-        public void Execute(UIApplication app)
+        protected override void ExecuteCore(UIApplication app)
         {
             try
             {
@@ -68,14 +57,9 @@ namespace RevitMCPCommandSet.Services
             {
                 Error = ex.Message;
             }
-            finally
-            {
-                TaskCompleted = true;
-                _resetEvent.Set();
-            }
         }
 
-        public string GetName()
+        public override string GetName()
         {
             return "Materialen beheren";
         }

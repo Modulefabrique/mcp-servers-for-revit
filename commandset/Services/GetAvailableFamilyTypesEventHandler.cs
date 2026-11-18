@@ -4,14 +4,11 @@ using RevitMCPSDK.API.Interfaces;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class GetAvailableFamilyTypesEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class GetAvailableFamilyTypesEventHandler : WaitableExternalEventHandlerBase
     {
         // Uitvoeringsresultaat
         public List<FamilyTypeInfo> ResultFamilyTypes { get; private set; }
 
-        // Object voor statussynchronisatie
-        public bool TaskCompleted { get; private set; }
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         // Filtervoorwaarden
         public List<string> CategoryList { get; set; }
@@ -22,24 +19,16 @@ namespace RevitMCPCommandSet.Services
         public string ErrorMessage { get; private set; }
 
         /// <summary>
-        /// Zet de wachtstatus en het vorige resultaat terug. Moet vóór het raisen van het externe event
-        /// worden aangeroepen, zodat een snel afgeronde handler zijn signaal niet kwijtraakt.
+        /// Zet het resultaat van een vorig verzoek terug. Aanroepen vóór het instellen van nieuwe parameters.
         /// </summary>
         public void ResetCompletion()
         {
-            TaskCompleted = false;
             ResultFamilyTypes = null;
             ErrorMessage = null;
-            _resetEvent.Reset();
         }
 
-        // Uitvoeringstijd, iets korter dan de time-out van de aanroep
-        public bool WaitForCompletion(int timeoutMilliseconds = 12500)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
-        public void Execute(UIApplication app)
+        protected override void ExecuteCore(UIApplication app)
         {
             try
             {
@@ -83,7 +72,7 @@ namespace RevitMCPCommandSet.Services
 #if REVIT2024_OR_GREATER
                             var categoryId = et.Category?.Id.Value;
 #else
-                            var categoryId = et.Category?.Id.IntegerValue;
+                            var categoryId = et.Category?.Id.GetIntValue();
 #endif
                             return categoryId != null && validCategoryIds.Contains((int)categoryId.Value);
                         });
@@ -127,7 +116,7 @@ namespace RevitMCPCommandSet.Services
 #if REVIT2024_OR_GREATER
                         FamilyTypeId = et.Id.Value,
 #else
-                        FamilyTypeId = et.Id.IntegerValue,
+                        FamilyTypeId = et.Id.GetValue(),
 #endif
                         UniqueId = et.UniqueId,
                         FamilyName = familyName,
@@ -140,14 +129,9 @@ namespace RevitMCPCommandSet.Services
             {
                 ErrorMessage = "Ophalen van familietypen mislukt: " + ex.Message;
             }
-            finally
-            {
-                TaskCompleted = true;
-                _resetEvent.Set();
-            }
         }
 
-        public string GetName()
+        public override string GetName()
         {
             return "GetAvailableFamilyTypes";
         }

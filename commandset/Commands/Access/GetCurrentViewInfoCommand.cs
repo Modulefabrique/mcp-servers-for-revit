@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace RevitMCPCommandSet.Commands.Access
 {
-    public class GetCurrentViewInfoCommand : ExternalEventCommandBase
+    public class GetCurrentViewInfoCommand : RevitCommandBase
     {
         private GetCurrentViewInfoEventHandler _handler => (GetCurrentViewInfoEventHandler)Handler;
 
@@ -27,7 +27,7 @@ namespace RevitMCPCommandSet.Commands.Access
             _handler.ResetCompletion();
 
             // Extern event activeren en wachten op voltooiing
-            if (RaiseAndWaitForCompletion(10000)) // 10 seconden time-out
+            if (RaiseAndWaitForCompletion(CommandTimeouts.Read))
             {
                 if (_handler.ErrorMessage != null)
                     throw new Exception(_handler.ErrorMessage);

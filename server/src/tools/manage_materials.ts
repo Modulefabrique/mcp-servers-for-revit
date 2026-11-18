@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 const patternSchema = z
   .object({
@@ -37,9 +37,15 @@ const materialSchema = z.object({
 });
 
 export function registerManageMaterialsTool(server: McpServer) {
-  server.tool(
-    "manage_materials",
-    "Create, list and update Revit materials according to the NAAKT naming convention. A NAAKT name " +
+  defineRevitTool(server, {
+    name: "manage_materials",
+    title: "Manage materials (NAAKT)",
+    // 'update' hernoemt bestaande materialen en overschrijft kleur en arceringen
+    kind: "destructive",
+    // Herhalen heeft geen extra effect: 'create' weigert een bestaande naam, 'update' meldt 'unchanged'
+    idempotent: true,
+    description:
+      "Create, list and update Revit materials according to the NAAKT naming convention. A NAAKT name " +
       "is always 'mainGroup_characteristic_application[_custom]', all lowercase, where the first " +
       "three parts come from fixed lists per main group (e.g. beton_gewapend_ihw, " +
       "hout_clt_prefab-element); the optional custom tail is free text. The tool builds the name " +
@@ -54,15 +60,16 @@ export function registerManageMaterialsTool(server: McpServer) {
       "(existing materials by 'id' from 'updates': rename to NAAKT and/or change color and patterns; " +
       "name parts that are left out are taken from the current name, so a material that is not " +
       "NAAKT yet needs mainGroup, characteristic and application). " +
-      "Recommended workflow for changes: use 'list' (and 'options' for missing parts) first, then " +
+      "'options' and 'list' change nothing; 'update' overwrites names, colors and patterns of existing " +
+      "materials. Recommended workflow for changes: use 'list' (and 'options' for missing parts) first, then " +
       "call create/update with dryRun=true, show the user the planned changes and only repeat the " +
       "call without dryRun after the user confirms. Each item is processed independently: an item " +
       "that fails (invalid NAAKT name, name already in use, unknown fill pattern or template) is " +
       "reported with a reason and rolled back, the other items still go through. The result lists " +
       "per item the old and new name, the status (created, updated, unchanged, failed) and what " +
-      "changes. If the call times out, split the lists into smaller batches. Does not synchronize " +
+      "changes. Material ids for 'update' come from 'list'; never invent ids. Does not synchronize " +
       "workshared models.",
-    {
+    schema: {
       action: z
         .enum(["options", "list", "create", "update"])
         .describe("What to do: options, list, create or update"),
@@ -91,32 +98,5 @@ export function registerManageMaterialsTool(server: McpServer) {
         .optional()
         .describe("update: the materials to change; each needs an id"),
     },
-    async (args) => {
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand("manage_materials", args);
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `manage materials failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+  });
 }

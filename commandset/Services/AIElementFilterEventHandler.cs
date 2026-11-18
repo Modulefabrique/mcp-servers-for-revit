@@ -17,16 +17,12 @@ using System.Xml;
 
 namespace RevitMCPCommandSet.Services
 {
-    public class AIElementFilterEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class AIElementFilterEventHandler : WaitableExternalEventHandlerBase
     {
         private UIApplication uiApp;
         private UIDocument uiDoc => uiApp.ActiveUIDocument;
         private Document doc => uiDoc.Document;
         private Autodesk.Revit.ApplicationServices.Application app => uiApp.Application;
-        /// <summary>
-        /// Wachtobject voor het event
-        /// </summary>
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
         /// <summary>
         /// Aangemaakte gegevens (invoergegevens)
         /// </summary>
@@ -34,7 +30,7 @@ namespace RevitMCPCommandSet.Services
         /// <summary>
         /// Uitvoeringsresultaat (uitvoergegevens)
         /// </summary>
-        public AIResult<List<object>> Result { get; private set; }
+        public PagedAIResult<List<object>> Result { get; private set; }
 
         /// <summary>
         /// Stelt de parameters voor het aanmaken in
@@ -42,9 +38,8 @@ namespace RevitMCPCommandSet.Services
         public void SetParameters(FilterSetting data)
         {
             FilterSetting = data;
-            _resetEvent.Reset();
         }
-        public void Execute(UIApplication uiapp)
+        protected override void ExecuteCore(UIApplication uiapp)
         {
             uiApp = uiapp;
 
@@ -58,18 +53,13 @@ namespace RevitMCPCommandSet.Services
                 var elementList = GetFilteredElements(doc, FilterSetting);
                 if (elementList == null || !elementList.Any())
                     throw new Exception("Geen elementen gevonden die aan de opgegeven criteria voldoen in het project, controleer de filterinstellingen");
-                // Limiet voor het maximaal aantal elementen van het filter, alleen als expliciet opgegeven
-                string message = "";
-                if (FilterSetting.MaxElements.HasValue && FilterSetting.MaxElements.Value > 0)
-                {
-                    int maxElements = FilterSetting.MaxElements.Value;
-                    if (elementList.Count > maxElements)
-                    {
-                        int totalCount = elementList.Count;
-                        elementList = elementList.Take(maxElements).ToList();
-                        message = $". Bovendien voldoen er in totaal {totalCount} elementen aan de filtercriteria, alleen de eerste {maxElements} worden weergegeven";
-                    }
-                }
+
+                // Paging: standaardlimiet plus totaal en truncated in het antwoord, zodat een groot model
+                // het antwoord niet laat ontploffen en het taalmodel toch weet dat er meer is
+                int totalMatched = elementList.Count;
+                int offset = Math.Max(0, FilterSetting.Offset ?? 0);
+                int limit = PagedAIResult<List<object>>.ResolveLimit(FilterSetting.MaxElements);
+                elementList = elementList.Skip(offset).Take(limit).ToList();
 
                 // Tel desgewenst per type hoe vaak het in het project is geplaatst
                 Dictionary<ElementId, int> instanceCounts = null;
@@ -81,41 +71,32 @@ namespace RevitMCPCommandSet.Services
                     ? GetElementFullInfo(doc, elementList, instanceCounts)
                     : GetElementBaseInfo(elementList, instanceCounts);
 
-                Result = new AIResult<List<object>>
+                Result = new PagedAIResult<List<object>>
                 {
                     Success = true,
-                    Message = $"Succesvol {elementInfoList.Count} elementgegevens opgehaald, gedetailleerde informatie is opgeslagen in de Response-eigenschap"+ message,
                     Response = elementInfoList,
                 };
+                Result.SetPaging(totalMatched, offset, elementList.Count);
+                Result.Message = Result.Truncated
+                    ? $"{elementList.Count} van {totalMatched} gevonden elementen geretourneerd (offset {offset}). " +
+                      $"Er zijn meer elementen: roep opnieuw aan met offset {Result.NextOffset} voor de volgende pagina."
+                    : $"{elementList.Count} van {totalMatched} gevonden elementen geretourneerd (offset {offset}); dit is de laatste pagina.";
             }
             catch (Exception ex)
             {
-                Result = new AIResult<List<object>>
+                Result = new PagedAIResult<List<object>>
                 {
                     Success = false,
                     Message = $"Fout bij het ophalen van elementinformatie: {ex.Message}",
                 };
             }
-            finally
-            {
-                _resetEvent.Set(); // Informeer de wachtende thread dat de bewerking is voltooid
-            }
         }
 
-        /// <summary>
-        /// Wacht tot het aanmaken is voltooid
-        /// </summary>
-        /// <param name="timeoutMilliseconds">Time-out (in milliseconden)</param>
-        /// <returns>Of de bewerking is voltooid vóór de time-out</returns>
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
         /// <summary>
         /// IExternalEventHandler.GetName implementatie
         /// </summary>
-        public string GetName()
+        public override string GetName()
         {
             return "Elementinformatie ophalen";
         }
@@ -370,7 +351,7 @@ namespace RevitMCPCommandSet.Services
 
                 return new ElementBaseInfo
                 {
-                    Id = element.Id.GetIntValue(),
+                    Id = element.Id.GetValue(),
                     Name = element.Name,
                     FamilyName = string.IsNullOrEmpty(familyName) ? null : familyName,
                     Category = category?.Name,
@@ -489,7 +470,7 @@ namespace RevitMCPCommandSet.Services
 
                 ElementInstanceInfo elementInfo = new ElementInstanceInfo();        // Aangepaste klasse voor het opslaan van volledige elementinformatie
                 // ID
-                elementInfo.Id = element.Id.GetIntValue();
+                elementInfo.Id = element.Id.GetValue();
                 // UniqueId
                 elementInfo.UniqueId = element.UniqueId;
                 // Typenaam
@@ -501,10 +482,10 @@ namespace RevitMCPCommandSet.Services
                 // Ingebouwde categorie
                 elementInfo.BuiltInCategory = Enum.GetName(typeof(BuiltInCategory), element.Category.Id.GetIntValue());
                 // Type-Id
-                elementInfo.TypeId = element.GetTypeId().GetIntValue();
+                elementInfo.TypeId = element.GetTypeId().GetValue();
                 // Bijbehorende ruimte-Id
                 if (element is FamilyInstance instance)
-                    elementInfo.RoomId = instance.Room?.Id.GetIntValue() ?? -1;
+                    elementInfo.RoomId = instance.Room?.Id.GetValue() ?? -1;
                 // Peil
                 elementInfo.Level = GetElementLevel(doc, element);
                 // Maximale bounding box
@@ -541,7 +522,7 @@ namespace RevitMCPCommandSet.Services
         {
             ElementTypeInfo typeInfo = new ElementTypeInfo();
             // Id
-            typeInfo.Id = elementType.Id.GetIntValue();
+            typeInfo.Id = elementType.Id.GetValue();
             // UniqueId
             typeInfo.UniqueId = elementType.UniqueId;
             // Typenaam
@@ -574,7 +555,7 @@ namespace RevitMCPCommandSet.Services
                     return null;
                 PositioningElementInfo info = new PositioningElementInfo
                 {
-                    Id = element.Id.GetIntValue(),
+                    Id = element.Id.GetValue(),
                     UniqueId = element.UniqueId,
                     Name = element.Name,
                     FamilyName = element?.get_Parameter(BuiltInParameter.ELEM_FAMILY_PARAM)?.AsValueString(),
@@ -629,7 +610,7 @@ namespace RevitMCPCommandSet.Services
                 SpatialElement spatialElement = element as SpatialElement;
                 SpatialElementInfo info = new SpatialElementInfo
                 {
-                    Id = element.Id.GetIntValue(),
+                    Id = element.Id.GetValue(),
                     UniqueId = element.UniqueId,
                     Name = element.Name,
                     FamilyName = element?.get_Parameter(BuiltInParameter.ELEM_FAMILY_PARAM)?.AsValueString(),
@@ -644,8 +625,8 @@ namespace RevitMCPCommandSet.Services
                 if (element is Room room)
                 {
                     info.Number = room.Number;
-                    // Omzetten naar mm³
-                    info.Volume = room.Volume * Math.Pow(304.8, 3);
+                    // Omzetten naar m³
+                    info.Volume = Math.Round(UnitUtils.ConvertFromInternalUnits(room.Volume, UnitTypeId.CubicMeters), 3);
                 }
                 else if (element is Area area)
                 {
@@ -656,8 +637,8 @@ namespace RevitMCPCommandSet.Services
                 Parameter areaParam = element.get_Parameter(BuiltInParameter.ROOM_AREA);
                 if (areaParam != null && areaParam.HasValue)
                 {
-                    // Omzetten naar mm²
-                    info.Area = areaParam.AsDouble() * Math.Pow(304.8, 2);
+                    // Omzetten naar m²
+                    info.Area = Math.Round(UnitUtils.ConvertFromInternalUnits(areaParam.AsDouble(), UnitTypeId.SquareMeters), 3);
                 }
 
                 // Haal omtrek op
@@ -692,7 +673,7 @@ namespace RevitMCPCommandSet.Services
 
                 ViewInfo info = new ViewInfo
                 {
-                    Id = element.Id.GetIntValue(),
+                    Id = element.Id.GetValue(),
                     UniqueId = element.UniqueId,
                     Name = element.Name,
                     FamilyName = element?.get_Parameter(BuiltInParameter.ELEM_FAMILY_PARAM)?.AsValueString(),
@@ -713,7 +694,7 @@ namespace RevitMCPCommandSet.Services
                     Level level = viewPlan.GenLevel;
                     info.AssociatedLevel = new LevelInfo
                     {
-                        Id = level.Id.GetIntValue(),
+                        Id = level.Id.GetValue(),
                         Name = level.Name,
                         Height = level.Elevation * 304.8 // Omzetten naar mm
                     };
@@ -760,7 +741,7 @@ namespace RevitMCPCommandSet.Services
                     return null;
                 AnnotationInfo info = new AnnotationInfo
                 {
-                    Id = element.Id.GetIntValue(),
+                    Id = element.Id.GetValue(),
                     UniqueId = element.UniqueId,
                     Name = element.Name,
                     FamilyName = element?.get_Parameter(BuiltInParameter.ELEM_FAMILY_PARAM)?.AsValueString(),
@@ -871,7 +852,7 @@ namespace RevitMCPCommandSet.Services
                     return null;
                 GroupOrLinkInfo info = new GroupOrLinkInfo
                 {
-                    Id = element.Id.GetIntValue(),
+                    Id = element.Id.GetValue(),
                     UniqueId = element.UniqueId,
                     Name = element.Name,
                     FamilyName = element?.get_Parameter(BuiltInParameter.ELEM_FAMILY_PARAM)?.AsValueString(),
@@ -942,7 +923,7 @@ namespace RevitMCPCommandSet.Services
                     return null;
                 ElementBasicInfo basicInfo = new ElementBasicInfo
                 {
-                    Id = element.Id.GetIntValue(),
+                    Id = element.Id.GetValue(),
                     UniqueId = element.UniqueId,
                     Name = element.Name,
                     FamilyName = element?.get_Parameter(BuiltInParameter.ELEM_FAMILY_PARAM)?.AsValueString(),
@@ -1010,7 +991,7 @@ namespace RevitMCPCommandSet.Services
                 return new ParameterInfo
                 {
                     Name = "Dikte",
-                    Value = $"{thicknessParam.AsDouble() * 304.8}"
+                    Value = FormatInvariant(thicknessParam.AsDouble() * 304.8) // mm
                 };
             }
             return null;
@@ -1070,7 +1051,7 @@ namespace RevitMCPCommandSet.Services
                 {
                     LevelInfo levelInfo = new LevelInfo
                     {
-                        Id = level.Id.GetIntValue(),
+                        Id = level.Id.GetValue(),
                         Name = level.Name,
                         Height = level.Elevation * 304.8
                     };
@@ -1136,7 +1117,7 @@ namespace RevitMCPCommandSet.Services
                 return new ParameterInfo
                 {
                     Name = "Hoogte",
-                    Value = $"{height}"
+                    Value = FormatInvariant(height) // mm
                 };
             }
             catch
@@ -1174,8 +1155,9 @@ namespace RevitMCPCommandSet.Services
                     // Als de huidige parameter een dimensiegerelateerde parameter is
                     if (IsDimensionParameter(param))
                     {
-                        // Haal de string-representatie van de parameterwaarde op
-                        string value = param.AsValueString();
+                        // Waarde in vaste eenheden en cultuuronafhankelijk (niet AsValueString: die volgt de
+                        // projecteenheden en de Windows-cultuur, bijv. "2,70 m" of "2700")
+                        string value = FormatDimensionValue(param);
 
                         // Voeg toe aan de lijst als de waarde niet leeg is
                         if (!string.IsNullOrWhiteSpace(value))
@@ -1197,6 +1179,35 @@ namespace RevitMCPCommandSet.Services
 
             // Retourneer gesorteerd op parameternaam
             return parameters.OrderBy(p => p.Name).ToList();
+        }
+
+        /// <summary>
+        /// Formatteert een getal cultuuronafhankelijk (punt als decimaalteken), afgerond op 3 decimalen.
+        /// </summary>
+        public static string FormatInvariant(double value)
+        {
+            return Math.Round(value, 3).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
+        /// Geeft de waarde van een dimensieparameter in vaste eenheden: lengte in mm, oppervlakte in m²,
+        /// volume in m³, hoek in graden. Andere soorten vallen terug op de weergavetekst van Revit.
+        /// </summary>
+        public static string FormatDimensionValue(Parameter param)
+        {
+            ForgeTypeId spec = param.Definition.GetDataType();
+            double internalValue = param.AsDouble();
+
+            if (spec.Equals(SpecTypeId.Length))
+                return FormatInvariant(UnitUtils.ConvertFromInternalUnits(internalValue, UnitTypeId.Millimeters));
+            if (spec.Equals(SpecTypeId.Area))
+                return FormatInvariant(UnitUtils.ConvertFromInternalUnits(internalValue, UnitTypeId.SquareMeters));
+            if (spec.Equals(SpecTypeId.Volume))
+                return FormatInvariant(UnitUtils.ConvertFromInternalUnits(internalValue, UnitTypeId.CubicMeters));
+            if (spec.Equals(SpecTypeId.Angle))
+                return FormatInvariant(UnitUtils.ConvertFromInternalUnits(internalValue, UnitTypeId.Degrees));
+
+            return param.AsValueString();
         }
 
         /// <summary>
@@ -1235,7 +1246,7 @@ namespace RevitMCPCommandSet.Services
     /// </summary>
     public class ElementBaseInfo
     {
-        public int Id { get; set; }
+        public long Id { get; set; }
         public string Name { get; set; }
         /// <summary>
         /// Wordt weggelaten als er geen aparte familienaam is (bijv. als het element zelf een familie is)
@@ -1259,7 +1270,7 @@ namespace RevitMCPCommandSet.Services
         /// <summary>
         /// Id
         /// </summary>
-        public int Id { get; set; }
+        public long Id { get; set; }
         /// <summary>
         /// Id
         /// </summary>
@@ -1267,7 +1278,7 @@ namespace RevitMCPCommandSet.Services
         /// <summary>
         /// Type-Id
         /// </summary>
-        public int TypeId { get; set; }
+        public long TypeId { get; set; }
         /// <summary>
         /// Naam
         /// </summary>
@@ -1287,7 +1298,7 @@ namespace RevitMCPCommandSet.Services
         /// <summary>
         /// Bijbehorende ruimte-Id
         /// </summary>
-        public int RoomId { get; set; }
+        public long RoomId { get; set; }
         /// <summary>
         /// Naam van bijbehorend peil
         /// </summary>
@@ -1311,7 +1322,7 @@ namespace RevitMCPCommandSet.Services
         /// <summary>
         /// ID
         /// </summary>
-        public int Id { get; set; }
+        public long Id { get; set; }
         /// <summary>
         /// Id
         /// </summary>
@@ -1352,7 +1363,7 @@ namespace RevitMCPCommandSet.Services
         /// <summary>
         /// Element-ID
         /// </summary>
-        public int Id { get; set; }
+        public long Id { get; set; }
         /// <summary>
         /// Uniek element-ID
         /// </summary>
@@ -1402,7 +1413,7 @@ namespace RevitMCPCommandSet.Services
         /// <summary>
         /// Element-ID
         /// </summary>
-        public int Id { get; set; }
+        public long Id { get; set; }
         /// <summary>
         /// Uniek element-ID
         /// </summary>
@@ -1432,11 +1443,11 @@ namespace RevitMCPCommandSet.Services
         /// </summary>
         public string ElementClass { get; set; }
         /// <summary>
-        /// Oppervlakte (eenheid mm²)
+        /// Oppervlakte (eenheid m²)
         /// </summary>
         public double? Area { get; set; }
         /// <summary>
-        /// Volume (eenheid mm³)
+        /// Volume (eenheid m³)
         /// </summary>
         public double? Volume { get; set; }
         /// <summary>
@@ -1461,7 +1472,7 @@ namespace RevitMCPCommandSet.Services
         /// <summary>
         /// Element-ID
         /// </summary>
-        public int Id { get; set; }
+        public long Id { get; set; }
         /// <summary>
         /// Uniek element-ID
         /// </summary>
@@ -1535,7 +1546,7 @@ namespace RevitMCPCommandSet.Services
         /// <summary>
         /// Element-ID
         /// </summary>
-        public int Id { get; set; }
+        public long Id { get; set; }
         /// <summary>
         /// Uniek element-ID
         /// </summary>
@@ -1590,7 +1601,7 @@ namespace RevitMCPCommandSet.Services
         /// <summary>
         /// Element-ID
         /// </summary>
-        public int Id { get; set; }
+        public long Id { get; set; }
         /// <summary>
         /// Uniek element-ID
         /// </summary>
@@ -1649,7 +1660,7 @@ namespace RevitMCPCommandSet.Services
         /// <summary>
         /// Element-ID
         /// </summary>
-        public int Id { get; set; }
+        public long Id { get; set; }
         /// <summary>
         /// Uniek element-ID
         /// </summary>
@@ -1702,7 +1713,7 @@ namespace RevitMCPCommandSet.Services
     /// </summary>
     public class LevelInfo
     {
-        public int Id { get; set; }
+        public long Id { get; set; }
         public string Name { get; set; }
         public double Height { get; set; }
     }

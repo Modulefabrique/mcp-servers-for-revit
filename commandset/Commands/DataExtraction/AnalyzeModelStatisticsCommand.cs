@@ -5,7 +5,7 @@ using RevitMCPSDK.API.Base;
 
 namespace RevitMCPCommandSet.Commands.DataExtraction
 {
-    public class AnalyzeModelStatisticsCommand : ExternalEventCommandBase
+    public class AnalyzeModelStatisticsCommand : RevitCommandBase
     {
         private AnalyzeModelStatisticsEventHandler _handler => (AnalyzeModelStatisticsEventHandler)Handler;
 
@@ -27,7 +27,7 @@ namespace RevitMCPCommandSet.Commands.DataExtraction
                 _handler.SetParameters(includeDetailedTypes);
 
                 // Execute and wait
-                if (RaiseAndWaitForCompletion(120000)) // 120 second timeout for large models
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Heavy))
                 {
                     return _handler.ResultInfo;
                 }

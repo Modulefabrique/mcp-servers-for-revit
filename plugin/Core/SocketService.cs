@@ -167,11 +167,15 @@ namespace revit_mcp_plugin.Core
 
             try
             {
-                byte[] buffer = new byte[8192];
+                byte[] buffer = new byte[64 * 1024];
+                // Decoder met eigen toestand: een UTF-8-teken van meerdere bytes dat over twee reads
+                // verdeeld binnenkomt (bijv. een 'ë' in een parameternaam), wordt correct samengevoegd
+                Decoder decoder = new UTF8Encoding(false).GetDecoder();
+                char[] chars = new char[Encoding.UTF8.GetMaxCharCount(buffer.Length)];
+                var framer = new JsonMessageFramer();
 
                 while (_isRunning && tcpClient.Connected)
                 {
-                    // Read client messages.
                     int bytesRead = 0;
 
                     try
@@ -180,29 +184,34 @@ namespace revit_mcp_plugin.Core
                     }
                     catch (IOException)
                     {
-                        // Client disconnected.
+                        // Client heeft de verbinding verbroken
                         break;
                     }
 
                     if (bytesRead == 0)
                     {
-                        // Client disconnected.
+                        // Client heeft de verbinding verbroken
                         break;
                     }
 
-                    string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                    System.Diagnostics.Trace.WriteLine($"Received message: {message}");
+                    int charCount = decoder.GetChars(buffer, 0, bytesRead, chars, 0);
 
-                    string response = ProcessJsonRPCRequest(message);
+                    // Een bericht kan over meerdere reads verdeeld zijn, en één read kan meerdere
+                    // berichten bevatten: de framer levert alleen complete berichten op
+                    foreach (string message in framer.Append(new string(chars, 0, charCount)))
+                    {
+                        string response = ProcessJsonRPCRequest(message);
 
-                    // Send response.
-                    byte[] responseData = Encoding.UTF8.GetBytes(response);
-                    stream.Write(responseData, 0, responseData.Length);
+                        // Antwoord als één regel, afgesloten met "\n". Een oudere server parset de hele
+                        // buffer met JSON.parse, en die negeert de afsluitende newline gewoon.
+                        byte[] responseData = Encoding.UTF8.GetBytes(response + "\n");
+                        stream.Write(responseData, 0, responseData.Length);
+                    }
                 }
             }
-            catch(Exception)
+            catch (Exception ex)
             {
-                // log
+                _logger.Error("Fout in socketverbinding: {0}", ex.Message);
             }
             finally
             {

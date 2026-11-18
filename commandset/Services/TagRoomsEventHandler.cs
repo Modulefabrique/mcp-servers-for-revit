@@ -36,16 +36,12 @@ namespace RevitMCPCommandSet.Services
     /// <summary>
     /// Event handler for creating room tags in Revit
     /// </summary>
-    public class TagRoomsEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class TagRoomsEventHandler : WaitableExternalEventHandlerBase
     {
         private UIApplication _uiApp;
         private UIDocument _uiDoc => _uiApp.ActiveUIDocument;
         private Document _doc => _uiDoc.Document;
 
-        /// <summary>
-        /// Event wait object for synchronization
-        /// </summary>
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         /// <summary>
         /// Tagging result data
@@ -54,20 +50,19 @@ namespace RevitMCPCommandSet.Services
 
         private bool _useLeader;
         private string _tagTypeId;
-        private List<int> _roomIds;
+        private List<long> _roomIds;
 
         /// <summary>
         /// Set the tagging parameters
         /// </summary>
-        public void SetParameters(bool useLeader, string tagTypeId, List<int> roomIds = null)
+        public void SetParameters(bool useLeader, string tagTypeId, List<long> roomIds = null)
         {
             _useLeader = useLeader;
             _tagTypeId = tagTypeId;
             _roomIds = roomIds;
-            _resetEvent.Reset();
         }
 
-        public void Execute(UIApplication uiapp)
+        protected override void ExecuteCore(UIApplication uiapp)
         {
             _uiApp = uiapp;
             string viewSwitchMessage = null;
@@ -307,7 +302,7 @@ namespace RevitMCPCommandSet.Services
                         }
                     }
 
-                    tran.Commit();
+                    tran.CommitOrThrow();
 
                     string resultMessage = skippedRooms.Count > 0
                         ? $"Created {createdTags.Count} tags. Skipped {skippedRooms.Count} rooms that already had tags."
@@ -340,26 +335,13 @@ namespace RevitMCPCommandSet.Services
                     message = $"Error occurred: {ex.Message}"
                 };
             }
-            finally
-            {
-                _resetEvent.Set(); // Signal that the operation is complete
-            }
         }
 
-        /// <summary>
-        /// Wait for the operation to complete
-        /// </summary>
-        /// <param name="timeoutMilliseconds">Timeout in milliseconds</param>
-        /// <returns>True if completed before timeout</returns>
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
         /// <summary>
         /// IExternalEventHandler.GetName implementation
         /// </summary>
-        public string GetName()
+        public override string GetName()
         {
             return "Tag Rooms";
         }
@@ -370,7 +352,7 @@ namespace RevitMCPCommandSet.Services
         private FamilySymbol FindRoomTagType(Document doc)
         {
             // If specific tag type ID was specified, try to use it
-            if (!string.IsNullOrEmpty(_tagTypeId) && int.TryParse(_tagTypeId, out int id))
+            if (!string.IsNullOrEmpty(_tagTypeId) && long.TryParse(_tagTypeId, out long id))
             {
                 ElementId elementId = new ElementId(id);
                 Element element = doc.GetElement(elementId);

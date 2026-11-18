@@ -1,53 +1,44 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerTagAllRoomsTool(server: McpServer) {
-  server.tool(
-    "tag_all_rooms",
-    "Create tags for all rooms in the current active view. Tags will be placed at the center point of each room, displaying the room name and number.",
-    {
+  defineRevitTool(server, {
+    name: "tag_all_rooms",
+    title: "Tag rooms",
+    kind: "write",
+    // Ruimten die in het aanzicht al een label hebben worden overgeslagen
+    idempotent: true,
+    method: "tag_rooms",
+    description:
+      "Place room tags in a plan view, at each room's location point, in one transaction. Without roomIds " +
+      "all rooms visible in the view are tagged; with roomIds (room element ids from ai_element_filter or " +
+      "get_current_view_elements, all on the same level; never invent ids) only those. Side effect: if the " +
+      "active view is not a floor or ceiling plan of the rooms' level (taken from the first roomId, or from " +
+      "any placed room in the project when roomIds is omitted), the tool switches Revit's active view to " +
+      "the first floor plan of that level and tags there; tell the user when viewSwitched is true. Rooms " +
+      "that already have a tag in the view are skipped and unplaced or not enclosed rooms (area 0) are " +
+      "ignored, so repeating the call creates no duplicate tags. Tags get Revit's default room tag type: " +
+      "tagTypeId is currently not applied. Returns success, totalRooms, taggedRooms, skippedCount, tags " +
+      "(tagId, roomId, roomName, roomNumber, location in mm), skippedRooms, errors, viewSwitched and message.",
+    schema: {
       useLeader: z
         .boolean()
         .optional()
         .default(false)
-        .describe("Whether to use a leader line when creating the tags"),
+        .describe("Give the created tags a leader line"),
       tagTypeId: z
         .string()
         .optional()
-        .describe("The ID of the specific room tag family type to use. If not provided, the default room tag type will be used"),
+        .describe(
+          "Currently not applied: tags always get Revit's default room tag type"
+        ),
       roomIds: z
         .array(z.number())
         .optional()
-        .describe("Optional array of specific room element IDs to tag. If not provided, all rooms in the current view will be tagged"),
+        .describe(
+          "Element ids of the rooms to tag (all on the same level). If omitted, all rooms visible in the view are tagged"
+        ),
     },
-    async (args, extra) => {
-      const params = args;
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand("tag_rooms", params);
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Room tagging failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+  });
 }

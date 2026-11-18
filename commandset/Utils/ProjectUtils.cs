@@ -388,44 +388,17 @@ namespace RevitMCPCommandSet.Utils
                 // Foutmarge verwerken
                 location = new XYZ(location.X, location.Y, location.Z + 0.1 / 304.8);
 
-                // Maak of haal een 3D-aanzicht op
-                View3D view3D = null;
-                FilteredElementCollector collector = new FilteredElementCollector(doc)
-                    .OfClass(typeof(View3D));
+                return doc.WithRaycastView(view3D => FindNearestFaceReference(location, radius, view3D));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.TraceWarning($"Er is een fout opgetreden bij het ophalen van het dichtstbijzijnde vlak: {ex.Message}"); // geen dialoog: zou het MCP-verzoek blokkeren
+                return null;
+            }
+        }
 
-                foreach (View3D v in collector)
-                {
-                    if (!v.IsTemplate)
-                    {
-                        view3D = v;
-                        break;
-                    }
-                }
-
-                if (view3D == null)
-                {
-                    using (Transaction trans = new Transaction(doc, "Create 3D View"))
-                    {
-                        trans.Start();
-                        ViewFamilyType vft = new FilteredElementCollector(doc)
-                            .OfClass(typeof(ViewFamilyType))
-                            .Cast<ViewFamilyType>()
-                            .FirstOrDefault(x => x.ViewFamily == ViewFamily.ThreeDimensional);
-
-                        if (vft != null)
-                        {
-                            view3D = View3D.CreateIsometric(doc, vft.Id);
-                        }
-                        trans.Commit();
-                    }
-                }
-
-                if (view3D == null)
-                {
-                    System.Diagnostics.Trace.TraceWarning("Kan geen 3D-aanzicht maken of ophalen"); // geen dialoog: zou het MCP-verzoek blokkeren
-                    return null;
-                }
-
+        private static Reference FindNearestFaceReference(XYZ location, double radius, View3D view3D)
+        {
                 // Stel stralen in voor 6 richtingen
                 XYZ[] directions = new XYZ[]
                 {
@@ -478,11 +451,65 @@ namespace RevitMCPCommandSet.Utils
                 }
 
                 return nearestFace;
-            }
-            catch (Exception ex)
+        }
+
+        /// <summary>
+        /// Voert <paramref name="raycast"/> uit met een 3D-aanzicht, nodig voor <see cref="ReferenceIntersector"/>.
+        /// Gebruikt een bestaand (niet-sjabloon) 3D-aanzicht; heeft het model er geen, dan wordt tijdelijk
+        /// een isometrisch aanzicht gemaakt en daarna weer teruggedraaid, zodat er geen aanzicht in het
+        /// model achterblijft. Binnen een lopende transactie (de normale situatie: aanroep vanuit een
+        /// handler) gebeurt dat met een SubTransaction; een nieuwe Transaction is daar niet toegestaan.
+        /// </summary>
+        private static T WithRaycastView<T>(this Document doc, Func<View3D, T> raycast) where T : class
+        {
+            View3D existing = new FilteredElementCollector(doc)
+                .OfClass(typeof(View3D))
+                .Cast<View3D>()
+                .FirstOrDefault(v => !v.IsTemplate);
+            if (existing != null)
+                return raycast(existing);
+
+            ViewFamilyType vft = new FilteredElementCollector(doc)
+                .OfClass(typeof(ViewFamilyType))
+                .Cast<ViewFamilyType>()
+                .FirstOrDefault(x => x.ViewFamily == ViewFamily.ThreeDimensional);
+            if (vft == null)
             {
-                System.Diagnostics.Trace.TraceWarning($"Er is een fout opgetreden bij het ophalen van het dichtstbijzijnde vlak: {ex.Message}"); // geen dialoog: zou het MCP-verzoek blokkeren
+                System.Diagnostics.Trace.TraceWarning("Kan geen 3D-aanzicht maken of ophalen"); // geen dialoog: zou het MCP-verzoek blokkeren
                 return null;
+            }
+
+            if (doc.IsModifiable)
+            {
+                using (var sub = new SubTransaction(doc))
+                {
+                    sub.Start();
+                    try
+                    {
+                        View3D temporary = View3D.CreateIsometric(doc, vft.Id);
+                        doc.Regenerate();
+                        return raycast(temporary);
+                    }
+                    finally
+                    {
+                        sub.RollBack(); // tijdelijk aanzicht weer verwijderen
+                    }
+                }
+            }
+
+            using (var transaction = new Transaction(doc, "Tijdelijk 3D-aanzicht"))
+            {
+                transaction.Start();
+                try
+                {
+                    View3D temporary = View3D.CreateIsometric(doc, vft.Id);
+                    doc.Regenerate();
+                    return raycast(temporary);
+                }
+                finally
+                {
+                    transaction.RollBack(); // tijdelijk aanzicht weer verwijderen
+                }
             }
         }
 
@@ -506,43 +533,17 @@ namespace RevitMCPCommandSet.Utils
                 Parameter hostParam = familySymbol.Family.get_Parameter(BuiltInParameter.FAMILY_HOSTING_BEHAVIOR);
                 int hostingBehavior = hostParam?.AsInteger() ?? 0;
 
-                // Maak of haal een 3D-aanzicht op
-                View3D view3D = null;
-                FilteredElementCollector viewCollector = new FilteredElementCollector(doc)
-                    .OfClass(typeof(View3D));
-                foreach (View3D v in viewCollector)
-                {
-                    if (!v.IsTemplate)
-                    {
-                        view3D = v;
-                        break;
-                    }
-                }
+                return doc.WithRaycastView(view3D => FindNearestHostElement(doc, location, radius, hostingBehavior, view3D));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.TraceWarning($"Er is een fout opgetreden bij het ophalen van het dichtstbijzijnde hostelement: {ex.Message}"); // geen dialoog: zou het MCP-verzoek blokkeren
+                return null;
+            }
+        }
 
-                if (view3D == null)
-                {
-                    using (Transaction trans = new Transaction(doc, "Create 3D View"))
-                    {
-                        trans.Start();
-                        ViewFamilyType vft = new FilteredElementCollector(doc)
-                            .OfClass(typeof(ViewFamilyType))
-                            .Cast<ViewFamilyType>()
-                            .FirstOrDefault(x => x.ViewFamily == ViewFamily.ThreeDimensional);
-
-                        if (vft != null)
-                        {
-                            view3D = View3D.CreateIsometric(doc, vft.Id);
-                        }
-                        trans.Commit();
-                    }
-                }
-
-                if (view3D == null)
-                {
-                    System.Diagnostics.Trace.TraceWarning("Kan geen 3D-aanzicht maken of ophalen"); // geen dialoog: zou het MCP-verzoek blokkeren
-                    return null;
-                }
-
+        private static Element FindNearestHostElement(Document doc, XYZ location, double radius, int hostingBehavior, View3D view3D)
+        {
                 // Maak een typefilter op basis van het hostgedrag
                 ElementFilter classFilter;
                 switch (hostingBehavior)
@@ -601,12 +602,6 @@ namespace RevitMCPCommandSet.Utils
                 }
 
                 return nearestHost;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Trace.TraceWarning($"Er is een fout opgetreden bij het ophalen van het dichtstbijzijnde hostelement: {ex.Message}"); // geen dialoog: zou het MCP-verzoek blokkeren
-                return null;
-            }
         }
 
         /// <summary>

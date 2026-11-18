@@ -5,7 +5,7 @@ using RevitMCPSDK.API.Base;
 
 namespace RevitMCPCommandSet.Commands
 {
-    public class TagWallsCommand : ExternalEventCommandBase
+    public class TagWallsCommand : RevitCommandBase
     {
         private TagWallsEventHandler _handler => (TagWallsEventHandler)Handler;
 
@@ -44,7 +44,7 @@ namespace RevitMCPCommandSet.Commands
                 _handler.SetParameters(useLeader, tagTypeId);
 
                 // Extern event activeren en wachten op voltooiing
-                if (RaiseAndWaitForCompletion(10000))
+                if (RaiseAndWaitForCompletion(CommandTimeouts.Write))
                 {
                     return _handler.TaggingResults;
                 }

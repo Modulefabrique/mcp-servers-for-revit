@@ -1,84 +1,78 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerCreateSurfaceBasedElementTool(server: McpServer) {
-  server.tool(
-    "create_surface_based_element",
-    "Create one or more surface-based elements in Revit such as floors, ceilings, or roofs. Supports batch creation with detailed parameters including family type ID, boundary lines, thickness, and level information. All units are in millimeters (mm).",
-    {
+  defineRevitTool(server, {
+    name: "create_surface_based_element",
+    title: "Create floors, ceilings or roofs",
+    kind: "write",
+    description:
+      "Create floors, ceilings or flat roofs from a closed boundary, one transaction per element. Boundary " +
+      "coordinates are in millimeters, in model coordinates relative to Revit's internal origin; the " +
+      "outerLoop segments must form one closed, contiguous loop (each segment's p1 is the next segment's " +
+      "p0). Only the outer loop is used (no openings). The type comes from typeId when it is a valid floor, " +
+      "ceiling or roof type id (from get_available_family_types, e.g. categoryList ['OST_Floors']; never " +
+      "invent ids); otherwise the first type of 'category' is used, with a warning in Message if a typeId " +
+      "was given but not found. Elements with neither a valid typeId nor a category are skipped without a " +
+      "warning ('name' is only a free label). Level: the existing level nearest to baseLevel (an elevation in " +
+      "mm, not a level id); the element's height offset from that level is set so that it lies at baseLevel " +
+      "+ baseOffset. thickness is ignored: the type determines the thickness. Roofs are created as footprint " +
+      "roofs without sloped edges. If an element throws an error (e.g. an open boundary), processing stops; " +
+      "elements created before it remain in the model. Returns Success, Message (including warnings) and " +
+      "Response = list of the created element ids.",
+    schema: {
       data: z
         .array(
           z.object({
             name: z
               .string()
-              .describe("Description of the element (e.g., floor, ceiling)"),
+              .describe("Free label for the element (e.g. 'floor', 'ceiling'); not used by Revit"),
             category: z
               .enum(["OST_Floors", "OST_Ceilings", "OST_Roofs"])
               .optional()
-              .describe("The Revit built-in category for the element. Use OST_Floors for floors, OST_Ceilings for ceilings, OST_Roofs for roofs. If not specified, will be determined from typeId."),
+              .describe(
+                "OST_Floors, OST_Ceilings or OST_Roofs. Required unless typeId is a valid floor/ceiling/roof type id"
+              ),
             typeId: z
               .number()
               .optional()
-              .describe("The ID of the family type to create."),
+              .describe("Element id of the floor, ceiling or roof type (from get_available_family_types)"),
             boundary: z
               .object({
                 outerLoop: z
                   .array(
                     z.object({
                       p0: z.object({
-                        x: z.number().describe("X coordinate of start point"),
-                        y: z.number().describe("Y coordinate of start point"),
-                        z: z.number().describe("Z coordinate of start point"),
+                        x: z.number().describe("X coordinate of start point in mm"),
+                        y: z.number().describe("Y coordinate of start point in mm"),
+                        z: z.number().describe("Z coordinate of start point in mm"),
                       }),
                       p1: z.object({
-                        x: z.number().describe("X coordinate of end point"),
-                        y: z.number().describe("Y coordinate of end point"),
-                        z: z.number().describe("Z coordinate of end point"),
+                        x: z.number().describe("X coordinate of end point in mm"),
+                        y: z.number().describe("Y coordinate of end point in mm"),
+                        z: z.number().describe("Z coordinate of end point in mm"),
                       }),
                     })
                   )
                   .min(3)
-                  .describe("Array of line segments defining the boundary"),
+                  .describe("Line segments of the closed boundary, in order (mm)"),
               })
-              .describe("Boundary definition with outer loop"),
-            thickness: z.number().describe("Thickness of the element"),
-            baseLevel: z.number().describe("Base level height"),
-            baseOffset: z.number().describe("Offset from the base level"),
+              .describe("Boundary of the element"),
+            thickness: z
+              .number()
+              .describe("Currently ignored: the type determines the thickness"),
+            baseLevel: z
+              .number()
+              .describe(
+                "Elevation in mm used to pick the nearest existing level (not a level id)"
+              ),
+            baseOffset: z
+              .number()
+              .describe("Offset in mm above baseLevel"),
           })
         )
-        .describe("Array of surface-based elements to create"),
+        .describe("Surface-based elements to create"),
     },
-    async (args, extra) => {
-      const params = args;
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand(
-            "create_surface_based_element",
-            params
-          );
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Create surface-based element failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+  });
 }

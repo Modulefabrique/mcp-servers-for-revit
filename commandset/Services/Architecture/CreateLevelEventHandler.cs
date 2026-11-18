@@ -10,16 +10,12 @@ namespace RevitMCPCommandSet.Services.Architecture
     /// <summary>
     /// Event handler for creating levels in Revit
     /// </summary>
-    public class CreateLevelEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
+    public class CreateLevelEventHandler : WaitableExternalEventHandlerBase
     {
         private UIApplication _uiApp;
         private UIDocument _uiDoc => _uiApp.ActiveUIDocument;
         private Document _doc => _uiDoc.Document;
 
-        /// <summary>
-        /// Event wait object for synchronization
-        /// </summary>
-        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
         /// <summary>
         /// Level creation data (input)
@@ -37,10 +33,9 @@ namespace RevitMCPCommandSet.Services.Architecture
         public void SetParameters(List<LevelCreationInfo> data)
         {
             LevelData = data;
-            _resetEvent.Reset();
         }
 
-        public void Execute(UIApplication uiapp)
+        protected override void ExecuteCore(UIApplication uiapp)
         {
             _uiApp = uiapp;
 
@@ -80,7 +75,7 @@ namespace RevitMCPCommandSet.Services.Architecture
 
                                     createdLevels.Add(new LevelResultInfo
                                     {
-                                        Id = existingLevel.Id.GetIntValue(),
+                                        Id = existingLevel.Id.GetValue(),
                                         UniqueId = existingLevel.UniqueId,
                                         Name = existingLevel.Name,
                                         Elevation = existingLevel.Elevation * 304.8, // Convert to mm
@@ -159,14 +154,14 @@ namespace RevitMCPCommandSet.Services.Architecture
                                     }
                                 }
 
-                                tx.Commit();
+                                tx.CommitOrThrow();
 
                                 // Add to existing names set
                                 existingLevelNames.Add(newLevel.Name);
 
                                 createdLevels.Add(new LevelResultInfo
                                 {
-                                    Id = newLevel.Id.GetIntValue(),
+                                    Id = newLevel.Id.GetValue(),
                                     UniqueId = newLevel.UniqueId,
                                     Name = newLevel.Name,
                                     Elevation = levelInfo.Elevation,
@@ -183,7 +178,9 @@ namespace RevitMCPCommandSet.Services.Architecture
                         }
                         catch (Exception ex)
                         {
-                            tx.RollBack();
+                            // Alleen terugdraaien als de transactie nog loopt: na een mislukte commit is
+                            // dat al gebeurd, en RollBack() zou dan een nieuwe exception geven
+                            tx.RollBackIfStarted();
                             warnings.Add($"Error creating level '{levelInfo.Name}': {ex.Message}");
                         }
                     }
@@ -226,26 +223,13 @@ namespace RevitMCPCommandSet.Services.Architecture
                     Message = $"Error creating levels: {ex.Message}",
                 };
             }
-            finally
-            {
-                _resetEvent.Set(); // Signal that the operation is complete
-            }
         }
 
-        /// <summary>
-        /// Wait for the operation to complete
-        /// </summary>
-        /// <param name="timeoutMilliseconds">Timeout in milliseconds</param>
-        /// <returns>True if completed before timeout</returns>
-        public bool WaitForCompletion(int timeoutMilliseconds = 10000)
-        {
-            return _resetEvent.WaitOne(timeoutMilliseconds);
-        }
 
         /// <summary>
         /// IExternalEventHandler.GetName implementation
         /// </summary>
-        public string GetName()
+        public override string GetName()
         {
             return "Create Level";
         }
@@ -256,7 +240,7 @@ namespace RevitMCPCommandSet.Services.Architecture
     /// </summary>
     public class LevelResultInfo
     {
-        public int Id { get; set; }
+        public long Id { get; set; }
         public string UniqueId { get; set; }
         public string Name { get; set; }
         public double Elevation { get; set; }

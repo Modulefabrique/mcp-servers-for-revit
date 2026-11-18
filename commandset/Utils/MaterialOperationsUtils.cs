@@ -442,7 +442,7 @@ namespace RevitMCPCommandSet.Utils
                     }
                 }
 
-                transaction.Commit();
+                transaction.CommitOrThrow();
             }
         }
 

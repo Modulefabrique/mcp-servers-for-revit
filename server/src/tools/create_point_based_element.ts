@@ -1,90 +1,85 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { defineRevitTool } from "../utils/defineRevitTool.js";
 
 export function registerCreatePointBasedElementTool(server: McpServer) {
-  server.tool(
-    "create_point_based_element",
-    "Create one or more point-based elements in Revit such as doors, windows, or furniture. Supports batch creation with detailed parameters including family type ID, position, dimensions, and level information. All units are in millimeters (mm).",
-    {
+  defineRevitTool(server, {
+    name: "create_point_based_element",
+    title: "Create point-based elements",
+    kind: "write",
+    description:
+      "Place family instances at a point, such as doors, windows, furniture or columns, one transaction per " +
+      "element. typeId is effectively required: it must be the id of a loadable family type from " +
+      "get_available_family_types (never invent ids); elements without a valid typeId are skipped without a " +
+      "warning ('name' is only a free label and does not select a category). Coordinates and lengths are in " +
+      "millimeters, in model coordinates relative to Revit's internal origin. The instance is associated with " +
+      "the existing level nearest to baseLevel (an elevation in mm, not a level id). baseOffset (mm above " +
+      "baseLevel) is used as sill height for doors/windows and as base offset for two-level families such as " +
+      "columns; height determines the top level/offset of two-level families. width and depth are currently " +
+      "ignored: the family type determines the size. Doors and windows are hosted in hostWallId if given, " +
+      "otherwise in the nearest wall, and are snapped onto the wall's location line; they face the side of " +
+      "the wall where locationPoint lies, unless facingFlipped=true, which instead flips Revit's default " +
+      "facing. rotation is applied only to elements other than doors and windows. If an element throws an " +
+      "error (e.g. no host found for a hosted family), processing stops; elements created before it remain " +
+      "in the model. Returns Success, Message (including warnings) and Response = list of the created " +
+      "element ids.",
+    schema: {
       data: z
         .array(
           z.object({
             name: z
               .string()
-              .describe("Description of the element (e.g., door, window)"),
+              .describe("Free label for the element (e.g. 'door', 'window'); not used by Revit"),
             typeId: z
               .number()
               .optional()
-              .describe("The ID of the family type to create."),
+              .describe(
+                "Element id of the family type to place (from get_available_family_types). Required in practice"
+              ),
             locationPoint: z
               .object({
-                x: z.number().describe("X coordinate"),
-                y: z.number().describe("Y coordinate"),
-                z: z.number().describe("Z coordinate"),
+                x: z.number().describe("X coordinate in mm"),
+                y: z.number().describe("Y coordinate in mm"),
+                z: z.number().describe("Z coordinate in mm"),
               })
               .describe(
-                "The position coordinates where the element will be placed"
+                "Insertion point (mm). For doors/windows a point on the side of the wall the element should face"
               ),
-            width: z.number().describe("Width of the element in mm"),
-            depth: z.number().optional().describe("Depth of the element in mm"),
-            height: z.number().describe("Height of the element in mm"),
-            baseLevel: z.number().describe("Base level height"),
-            baseOffset: z.number().describe("Offset from the base level"),
+            width: z.number().describe("Currently ignored: the family type determines the size"),
+            depth: z.number().optional().describe("Currently ignored: the family type determines the size"),
+            height: z
+              .number()
+              .describe("Height in mm; used for the top level/offset of two-level families such as columns"),
+            baseLevel: z
+              .number()
+              .describe(
+                "Elevation in mm used to pick the nearest existing level (not a level id)"
+              ),
+            baseOffset: z
+              .number()
+              .describe("Offset in mm above baseLevel (sill height for doors/windows)"),
             rotation: z
               .number()
               .optional()
-              .describe("Rotation angle in degrees (0-360)"),
+              .describe(
+                "Rotation in degrees about the vertical axis through locationPoint; ignored for doors and windows"
+              ),
             hostWallId: z
               .number()
               .optional()
               .describe(
-                "The ElementId of a specific wall to use as host for doors/windows. " +
-                "If not provided, the nearest wall will be auto-detected."
+                "Element id of the wall to host a door/window. If omitted or not a wall, the nearest wall is used"
               ),
             facingFlipped: z
               .boolean()
               .optional()
               .default(false)
               .describe(
-                "Whether to flip the facing direction of the door/window. " +
-                "When true, the element faces the opposite side of the wall."
+                "Doors/windows only: true flips Revit's default facing instead of facing the side of locationPoint"
               ),
           })
         )
-        .describe("Array of point-based elements to create"),
+        .describe("Point-based elements to create"),
     },
-    async (args, extra) => {
-      const params = args;
-
-      try {
-        const response = await withRevitConnection(async (revitClient) => {
-          return await revitClient.sendCommand(
-            "create_point_based_element",
-            params
-          );
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(response, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Create point-based element failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          ],
-        };
-      }
-    }
-  );
+  });
 }
