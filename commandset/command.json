@@ -29,6 +29,11 @@
       "assemblyPath": "RevitMCPCommandSet.dll"
     },
     {
+      "commandName": "get_view_image",
+      "description": "Export a view as an image for visual analysis by the language model",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
       "commandName": "get_selected_elements",
       "description": "get selected elements",
       "assemblyPath": "RevitMCPCommandSet.dll"

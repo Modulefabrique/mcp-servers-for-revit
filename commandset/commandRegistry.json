@@ -65,6 +65,22 @@
       "description": "get current view info"
     },
     {
+      "commandName": "get_view_image",
+      "assemblyPath": "CommandSet\\{VERSION}\\RevitMCPCommandSet.dll",
+      "enabled": true,
+      "supportedRevitVersions": [
+        "2024",
+        "2026"
+      ],
+      "developer": {
+        "name": "mcp-servers-for-revit",
+        "email": "",
+        "website": "",
+        "organization": "mcp-servers-for-revit"
+      },
+      "description": "Export a view as an image for visual analysis by the language model"
+    },
+    {
       "commandName": "get_selected_elements",
       "assemblyPath": "CommandSet\\{VERSION}\\RevitMCPCommandSet.dll",
       "enabled": true,
